@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf8 -*-
 
+APP_NAME = "SPS HC20 - CONSOLLE"
+APP_VERSION = "0.3" # see setup.py
+
 try:
     # python 3.x
     from configparser import SafeConfigParser
@@ -19,7 +22,8 @@ import sys
 import time
 
 import chrono
-from dialog import InputNumberDialog
+from common import BulletinWindow
+from common import InputNumberDialog
 from palette import Palette
 import scoreboard
 import widget
@@ -43,11 +47,9 @@ SCORE_FONT = ('', SCORE_FONT_SIZE, 'bold')
 BUTTON_PADDING = 10
 
 # main window
-APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.2" # see setup.py
-
 SIREN_BUTTON_LABEL = "Sirena"
 TIMEOUT_BUTTON_LABEL = "Timeout"
+BULLETIN_BUTTON_LABEL = "Comunicato"
 CONFIG_BUTTON_LABEL = "Configura"
 QUIT_BUTTON_LABEL = "Esci"
 
@@ -72,7 +74,7 @@ CONFIG_DIALOG_PERIOD_EXPIRED_BLAST_BUTTON_LABEL = \
 CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di inizio timeout"
 CONFIG_DIALOG_TIMEOUT_EXPIRED_BLAST_BUTTON_LABEL = \
-    "Suona la sirena di fine timeout"
+    "Suona la sirena di imminente fine timeout"
 
 OK_BUTTON_LABEL = "OK"
 CANCEL_BUTTON_LABEL = "Annulla"
@@ -80,7 +82,7 @@ CANCEL_BUTTON_LABEL = "Annulla"
 # main window labels
 TIMEOUT_IN_PROGRESS = \
     "Timeout in corso!\n\n" \
-    "Il conteggio del tempo partita è momentaneamente sospeso.\n\n" \
+    "Il tempo di gioco è fermo a {:02d}:{:02d}.\n\n" \
     "Premere OK alla ripresa del gioco."
 HOME_TEAM_TITLE = "LOCALI"
 GUEST_TEAM_TITLE = "OSPITI"
@@ -113,7 +115,7 @@ class AppConfig(object):
 
     def __init__(self):
         self._time_view_config = chrono.TimeViewConfig()
-        self.period_duration = 0
+        self.period_duration = 30
         self.period_expired_blast = False
         self.timeout_called_blast = False
         self.timeout_expired_blast = False
@@ -255,12 +257,10 @@ class ConfigDialog(widget.BaseDialog):
             row=0, column=0, stick=tk.W, padx=(5, 0), pady=5)
         ttk.Entry(serial_port, textvariable=self._serial_port).grid(
             row=0, column=1, stick=tk.W, padx=(5, 0), pady=5)
-        ttk.Separator(master, orient='horizontal').grid(
-            row=4, column=0, columnspan=3, stick=tk.EW, pady=(20, 5))
         ttk.Button(master, text=OK_BUTTON_LABEL, command=self.ok).grid(
-            row=5, column=1, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=4, column=1, stick=tk.E, padx=(0, 5), pady=(10, 5))
         ttk.Button(master, text=CANCEL_BUTTON_LABEL, command=self.cancel).grid(
-            row=5, column=2, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=4, column=2, stick=tk.E, padx=(0, 5), pady=(10, 5))
         master.grid_columnconfigure(0, weight=1)
         self.bind("<Escape>", self.cancel)
         self.bind("<Return>", self.ok)
@@ -436,6 +436,8 @@ class Application(widget.StyledWidget):
         self._timeout_timer_config.tenth_second_on_last_minute = False
         self._timeout_timer = chrono.Timer()
         self._timeout_timer.set_period_duration(TIMEOUT_DURATION)
+        # bulletin window
+        self._bulletin_window = None
         # enable styling
         style = ttk.Style()
         style.configure("TLabel", foreground=self._FOREGROUND_COLOR)
@@ -448,18 +450,20 @@ class Application(widget.StyledWidget):
         style.map(
             'TCheckbutton',
             background=[('active', self._BACKGROUND_COLOR)])
-        # initial configuration
+        # scoreboard
         self._siren_on = False
         self._scoreboard = None
+        # initial configuration
         self._config = AppConfig()
         self._config_file_path = os.path.expanduser(
-            '~/.jolly-handball_consolle.cfg')
+            '~/.sps-hc20_consolle.cfg')
         self._config.load(self._config_file_path)
         self._change_config()
         # prepare the main window
         widget.StyledWidget.__init__(self, self._root)
         self._root.deiconify()
         self._set_initial_size()
+        widget.center_window(self._root)
         self._update()
 
     def _create_widgets(self):
@@ -471,7 +475,10 @@ class Application(widget.StyledWidget):
         self._guest_team_widget = TeamWidget(self._root, GUEST_TEAM_TITLE, True)
         # main window buttons
         self._siren_button = ttk.Button(self._root, text=SIREN_BUTTON_LABEL)
-        self._timeout_button = ttk.Button(self._root, text=TIMEOUT_BUTTON_LABEL)
+        self._timeout_button = ttk.Button(
+            self._root, text=TIMEOUT_BUTTON_LABEL)
+        self._bulletin_button = ttk.Button(
+            self._root, text=BULLETIN_BUTTON_LABEL)
         self._config_button = ttk.Button(self._root, text=CONFIG_BUTTON_LABEL)
         self._quit_button = ttk.Button(self._root, text=QUIT_BUTTON_LABEL)
 
@@ -492,6 +499,8 @@ class Application(widget.StyledWidget):
             row=1, column=2, stick=tk.W, padx=5, pady=(10, 5))
         ttk.Separator(self._root, orient='horizontal').grid(
             row=4, column=0, columnspan=5, stick=tk.S + tk.EW, padx=5, pady=5)
+        self._bulletin_button.grid(
+            row=5, column=0, stick=tk.SW, padx=5, pady=5)
         self._config_button.grid(
             row=5, column=3, stick=tk.SE, padx=5, pady=5)
         self._quit_button.grid(
@@ -505,6 +514,7 @@ class Application(widget.StyledWidget):
         self._siren_button.bind('<Button-1>', self._on_siren_on)
         self._siren_button.bind('<ButtonRelease-1>', self._on_siren_off)
         self._timeout_button['command'] = self._on_timeout
+        self._bulletin_button['command'] = self._on_bulletin
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
         # main window events
@@ -518,16 +528,28 @@ class Application(widget.StyledWidget):
 
     def _on_timeout(self, event=None):
         self._timer.stop()
+        minute, second, _ = self._timer_widget.now()
         if self._config.timeout_called_blast:
             self._activate_siren()
         self._timeout_timer.reset()
         self._timeout_timer.arm_trigger(0, 50)
         self._timer_widget.change_timer(self._timeout_timer)
         self._timeout_timer.start()
-        tkMessageBox.showinfo(APP_NAME, TIMEOUT_IN_PROGRESS)
+        tkMessageBox.showinfo(
+            APP_NAME, TIMEOUT_IN_PROGRESS.format(minute, second))
         self._timeout_timer.stop()
         self._timer_widget.change_timer(self._timer)
         self._timer.start()
+
+    def _bulletin_window_closed(self):
+        self._bulletin_window = None
+
+    def _on_bulletin(self, event=None):
+        if not self._bulletin_window:
+            self._bulletin_window = BulletinWindow(
+                self._root, self._scoreboard, self._bulletin_window_closed)
+        else:
+            self._bulletin_window.lift()
 
     def _on_config(self, event=None):
         self._change_config()
@@ -559,10 +581,10 @@ class Application(widget.StyledWidget):
         else:
             self._disable(self._timeout_button)
         if self._scoreboard:
-            _, _, tenth = self._timer.now()
+            _, _, tenth = self._timer_widget.now()
             self._scoreboard.update(
                 scoreboard.Data(
-                    timestamp=self._timer.figures(),
+                    timestamp=self._timer_widget.figures(),
                     dot=tenth < 5,
                     leading_zero_in_minute = \
                         self._config.leading_zero_in_minute,

@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf8 -*-
 
+APP_NAME = "Referto Gara"
+APP_VERSION = "0.3" # see setup.py
+
 # TODO:
 # if a dimissed player misses a penalty no warning is emitted
 # penalties phase duration
@@ -32,7 +35,8 @@ import sys
 import time
 
 import chrono
-from dialog import InputNumberDialog
+from common import BulletinWindow
+from common import InputNumberDialog
 import game
 from palette import Palette
 import scoreboard
@@ -54,14 +58,11 @@ MAX_REPORT_FONT_SIZE = 14
 REPORT_FONT = (REPORT_FONT_NAME, MIN_REPORT_FONT_SIZE)
 
 # main window
-APP_NAME = "Referto Gara"
-APP_VERSION = "0.2" # see setup.py
-
 STOP_TIME_DURING_PENALTIES_CHECKBOX_LABEL = \
     "Ferma il contaminuti durante i rigori"
 GOAL_BUTTON_LABEL = "Goal"
-TIMEOUT_CALL_BUTTON_LABEL = "Time Out"
-TIMEOUT_END_BUTTON_LABEL = "Fine Time Out"
+TIMEOUT_CALL_BUTTON_LABEL = "Timeout"
+TIMEOUT_END_BUTTON_LABEL = "Fine Timeout"
 WARNING_BUTTON_LABEL = "Ammonizione"
 SUSPENSION_BUTTON_LABEL = "2 Minuti"
 DISMISS_BUTTON_LABEL = "Squalifica"
@@ -69,6 +70,7 @@ PENALTY_BUTTON_LABEL = "Rigore"
 EXPORT_EVENTS_BUTTON_LABEL = "Salva..."
 DELETE_EVENT_BUTTON_LABEL = "Cancella Evento"
 SIREN_BUTTON_LABEL = "Sirena"
+BULLETIN_BUTTON_LABEL = "Comunicato"
 CONFIG_BUTTON_LABEL = "Configura"
 QUIT_BUTTON_LABEL = "Esci"
 
@@ -285,8 +287,8 @@ CONFIG_DIALOG_PERIOD_DURATION_HINT = \
     "Specificare la durata di un tempo, in minuti:"
 CONFIG_DIALOG_PERIOD_DURATION_BUTTON_LABEL = "Cambia"
 CONFIG_DIALOG_OPTIONS_HEADING = "Opzioni"
-CONFIG_DIALOG_SERIAL_PORT_HEADING = "Collegamento al tabellone"
-CONFIG_DIALOG_SERIAL_PORT_LABEL = "Porta seriale:"
+CONFIG_DIALOG_SERIAL_PORT_HEADING = "Porta seriale"
+CONFIG_DIALOG_SERIAL_PORT_LABEL = "Nome del dispositivo:"
 CONFIG_DIALOG_AGGREGATE_TIME_BUTTON_LABEL = "Mostra il tempo aggregato"
 CONFIG_DIALOG_LEADING_ZERO_IN_MINUTE_BUTTON_LABEL = \
     "Mostra lo zero iniziale nei minuti"
@@ -296,7 +298,7 @@ CONFIG_DIALOG_PERIOD_EXPIRED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di fine tempo"
 CONFIG_DIALOG_TIMEOUT_HEADING = "Timeout"
 CONFIG_DIALOG_SHOW_TIMEOUT_TIME_BUTTON_LABEL = \
-    "Mostra il minuto di timeout sul tabellone"
+    "Mostra lo scorrere del minuto di timeout"
 CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di inizio timeout"
 CONFIG_DIALOG_TIMEOUT_EXPIRING_BLAST_BUTTON_LABEL = \
@@ -309,6 +311,7 @@ class AppConfig(object):
 
     def __init__(self):
         self.time_view_config = chrono.TimeViewConfig()
+        self.period_duration = 30
         self.knock_out_game = False
         self.period_expired_blast = False
         self.show_timeout_time = False
@@ -541,12 +544,10 @@ class ConfigDialog(widget.BaseDialog):
             row=0, column=0, stick=tk.W, padx=(5, 0), pady=5)
         ttk.Entry(serial_port, textvariable=self._serial_port).grid(
             row=0, column=1, stick=tk.W, padx=(5, 0), pady=5)
-        ttk.Separator(master, orient='horizontal').grid(
-            row=6, column=0, columnspan=3, stick=tk.EW, pady=(20, 5))
         ttk.Button(master, text=OK_BUTTON_LABEL, command=self.ok).grid(
-            row=7, column=1, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=6, column=1, stick=tk.E, padx=(0, 5), pady=(10, 5))
         ttk.Button(master, text=CANCEL_BUTTON_LABEL, command=self.cancel).grid(
-            row=7, column=2, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=6, column=2, stick=tk.E, padx=(0, 5), pady=(10, 5))
         master.grid_columnconfigure(0, weight=1)
         self.bind('<Escape>', self.cancel)
         self.bind('<Return>', self.ok)
@@ -1096,18 +1097,21 @@ class Application(widget.StyledWidget):
         self._stop_time_during_penalties = tk.BooleanVar()
         self._stop_time_during_penalties.set(False)
         self._in_timeout = False
+        # bulletin window
+        self._bulletin_window = None
         # enable styling
         style = ttk.Style()
         style.configure('TButton', padding=10)
         style.configure('TCheckbutton', background=self._BACKGROUND_COLOR)
         style.map(
             'TCheckbutton', background=[('active', self._BACKGROUND_COLOR)])
-        # initial configuration
+        # scoreboard
         self._siren_on = False
         self._scoreboard = None
+        # initial configuration
         self._config = AppConfig()
         self._config_file_path = os.path.expanduser(
-            '~/.jolly-handball_report.cfg')
+            '~/.sps-hc20_report.cfg')
         self._config.load(self._config_file_path)
         self._change_config(True) # initial config
         if self._config.knock_out_game:
@@ -1121,6 +1125,7 @@ class Application(widget.StyledWidget):
         widget.StyledWidget.__init__(self, self._root)
         self._root.deiconify()
         self._set_initial_size()
+        widget.center_window(self._root)
         self._update()
         self._update_game_phase()
         self._update_progress_button_label()
@@ -1171,6 +1176,8 @@ class Application(widget.StyledWidget):
             self._root, game.TEAM_B_ID)
         # main window buttons
         self._siren_button = ttk.Button(self._root, text=SIREN_BUTTON_LABEL)
+        self._bulletin_button = ttk.Button(
+            self._root, text=BULLETIN_BUTTON_LABEL)
         self._config_button = ttk.Button(self._root, text=CONFIG_BUTTON_LABEL)
         self._quit_button = ttk.Button(self._root, text=QUIT_BUTTON_LABEL)
 
@@ -1194,21 +1201,21 @@ class Application(widget.StyledWidget):
         self._stop_time_during_penalties_button.grid(
             row=3, column=2, pady=(15, 5))
         # game phase
-        self._game_phase_widget.grid(row=0, column=3, rowspan=4, columnspan=4)
+        self._game_phase_widget.grid(row=0, column=3, rowspan=4, columnspan=6)
         # game events
         self._event_list.grid(
             row=4,
             column=2,
-            rowspan=10,
+            rowspan=11,
             stick=tk.NSEW,
             padx=5,
-            pady=(20, 0))
+            pady=(20, 5))
         # team stats
         self._team_a_stats.grid(
-            row=5, column=3, rowspan=7, stick=tk.NSEW, padx=5)
+            row=5, column=3, rowspan=7, columnspan=3, stick=tk.NSEW, padx=5)
         self._team_b_stats.grid(
             row=5,
-            column=4,
+            column=6,
             rowspan=7,
             columnspan=3,
             stick=tk.NSEW,
@@ -1217,34 +1224,38 @@ class Application(widget.StyledWidget):
         self._suspension_reports_heading.grid(
             row=12,
             column=3,
-            columnspan=4,
+            columnspan=6,
             pady=(15, 0))
         self._team_a_suspensions.grid(
             row=13,
             column=3,
+            columnspan=3,
             stick=tk.NSEW,
             padx=(0, 5),
             pady=(5, 0))
         self._team_b_suspensions.grid(
             row=13,
-            column=4,
+            column=6,
             columnspan=3,
             stick=tk.NSEW,
             padx=(0, 5),
             pady=(5, 0))
         # main window buttons
         self._siren_button.grid(
-            row=14, column=1, stick=tk.EW, padx=5, pady=5)
+            row=14, column=4, stick=tk.EW, padx=5, pady=5)
+        self._bulletin_button.grid(
+            row=14, column=5, stick=tk.EW, padx=(0, 5), pady=5)
         self._config_button.grid(
-            row=14, column=5, stick=tk.EW, padx=5, pady=5)
+            row=14, column=7, stick=tk.EW, padx=5, pady=5)
         self._quit_button.grid(
-            row=14, column=6, stick=tk.EW, padx=(0, 5), pady=5)
+            row=14, column=8, stick=tk.EW, padx=(0, 5), pady=5)
         # main grid
         self._root.grid_rowconfigure(5, weight=5)
         self._root.grid_rowconfigure(13, weight=1)
         self._root.grid_columnconfigure(0, weight=1)
-        self._root.grid_columnconfigure(4, minsize=72)
-        self._root.grid_columnconfigure(7, weight=1)
+        self._root.grid_columnconfigure(3, minsize=72)
+        self._root.grid_columnconfigure(6, minsize=72)
+        self._root.grid_columnconfigure(9, weight=1)
 
     def _create_bindings(self):
         # actions
@@ -1258,6 +1269,7 @@ class Application(widget.StyledWidget):
         # main window buttons
         self._siren_button.bind('<Button-1>', self._on_siren_on)
         self._siren_button.bind('<ButtonRelease-1>', self._on_siren_off)
+        self._bulletin_button['command'] = self._on_bulletin
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
         # keyboard shortcuts
@@ -1342,7 +1354,7 @@ class Application(widget.StyledWidget):
         elif self._timeout_timer.is_expired():
             self._timeout_expired()
         if self._scoreboard:
-            _, _, tenth = self._period_timer.now()
+            _, _, tenth = self._timer_widget.now()
             home_score, guest_score = self._match.score()
             if self._config.show_timeout_calls_on_scoreboard:
                 team_a_timeouts = self._match.called_timeouts(game.TEAM_A_ID)
@@ -1356,10 +1368,9 @@ class Application(widget.StyledWidget):
                 home_second_timeout = False
                 guest_first_timeout = False
                 guest_second_timeout = False
-
             self._scoreboard.update(
                 scoreboard.Data(
-                    timestamp=self._period_timer.figures(),
+                    timestamp=self._timer_widget.figures(),
                     dot=tenth < 5,
                     leading_zero_in_minute = \
                         self._config.leading_zero_in_minute,
@@ -1563,6 +1574,13 @@ class Application(widget.StyledWidget):
     def _on_siren_off(self, event=None):
         self._siren_on = False
 
+    def _on_bulletin(self, event=None):
+        if not self._bulletin_window:
+            self._bulletin_window = BulletinWindow(
+                self._root, self._scoreboard, self._bulletin_window_closed)
+        else:
+            self._bulletin_window.lift()
+
     def _on_config(self, event=None):
         self._change_config(False) # not the initial config
 
@@ -1615,6 +1633,9 @@ class Application(widget.StyledWidget):
     def _activate_siren(self):
         self._root.after(0, self._on_siren_on)
         self._root.after(1000, self._on_siren_off)
+
+    def _bulletin_window_closed(self):
+        self._bulletin_window = None
 
 
 root_ = tk.Tk()

@@ -13,6 +13,15 @@ except:
 from palette import Palette
 
 
+def center_window(window):
+    window.update_idletasks()
+    w = window.winfo_screenwidth()
+    h = window.winfo_screenheight()
+    size = tuple(int(_) for _ in window.geometry().split('+')[0].split('x'))
+    x = w/2 - size[0]/2
+    y = h/2 - size[1]/2
+    window.geometry("%dx%d+%d+%d" % (size + (x, y)))
+
 class StyledWidget(object):
 
     _FOREGROUND_COLOR = Palette.BASE02
@@ -81,15 +90,6 @@ class BaseDialog(tkSimpleDialog.Dialog):
         pass
 
     def wait_window(self, window=None):
-        self._center_window()
+        center_window(self)
         self.focus_force()
         return tkSimpleDialog.Dialog.wait_window(self, window)
-
-    def _center_window(self):
-        self.update_idletasks()
-        w = self.winfo_screenwidth()
-        h = self.winfo_screenheight()
-        size = tuple(int(_) for _ in self.geometry().split('+')[0].split('x'))
-        x = w/2 - size[0]/2
-        y = h/2 - size[1]/2
-        self.geometry("%dx%d+%d+%d" % (size + (x, y)))

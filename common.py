@@ -10,8 +10,19 @@ except:
     import Tkinter as tk
     import ttk
 
-from widget import BaseDialog
+import widget
 
+# BulletinWindow labels
+BULLETIN_TITLE = "Comunicato"
+BULLETIN_TEXT = "Testo del messaggio:"
+BULLETIN_TEXT_SPEED = "Velocità di scorrimento"
+BULLETIN_TEXT_SPEED_LOW = "Bassa"
+BULLETIN_TEXT_SPEED_MEDIUM = "Media"
+BULLETIN_TEXT_SPEED_HIGH = "Alta"
+BULLETIN_TEXT_SPEED_LUDICROUS = "Smodata"
+BULLETIN_SHOW_BUTTON_LABEL = "Mostra"
+BULLETIN_HIDE_BUTTON_LABEL = "Nascondi"
+BULLETIN_QUIT_BUTTON_LABEL = "Esci"
 
 # InputNumberDialog labels
 RUBOUT_BUTTON_LABEL = "<<"
@@ -19,13 +30,87 @@ OK_BUTTON_LABEL = "OK"
 CANCEL_BUTTON_LABEL = "Annulla"
 
 
-class InputNumberDialog(BaseDialog):
+class BulletinWindow(tk.Toplevel):
+
+    _DELAYS = {
+        BULLETIN_TEXT_SPEED_LOW: 500,
+        BULLETIN_TEXT_SPEED_MEDIUM: 250,
+        BULLETIN_TEXT_SPEED_HIGH: 125,
+        BULLETIN_TEXT_SPEED_LUDICROUS: 50,
+    }
+
+    def __init__(self, parent, scoreboard, close_callback):
+        tk.Toplevel.__init__(self, parent)
+        self.title(BULLETIN_TITLE)
+        self.transient(parent)
+        self._scoreboard = scoreboard
+        self._close_callback = close_callback
+        self.protocol('WM_DELETE_WINDOW', self._on_delete_window)
+        ttk.Label(self, text=BULLETIN_TEXT, justify=tk.LEFT).grid(
+            row=0, column=0, stick=tk.W, padx=5, pady=(20, 5))
+        self._text = ttk.Entry(self)
+        self._text.grid(
+            row=0, column=1, columnspan=3, stick=tk.EW, padx=5, pady=(20, 5))
+        self._text.focus_set()
+        ttk.Label(self, text=BULLETIN_TEXT_SPEED, justify=tk.LEFT).grid(
+            row=1, column=0, stick=tk.W, padx=5, pady=5)
+        self._delay = ttk.Combobox(
+            self, width=max([len(x) for x in self._DELAYS.keys()]) + 2)
+        self._delay['values'] = [
+            BULLETIN_TEXT_SPEED_LOW,
+            BULLETIN_TEXT_SPEED_MEDIUM,
+            BULLETIN_TEXT_SPEED_HIGH,
+            BULLETIN_TEXT_SPEED_LUDICROUS,
+        ]
+        self._delay.current(2)
+        self._delay.grid(row=1, column=1, stick=tk.W, padx=5, pady=5)
+        ttk.Separator(self, orient='horizontal').grid(
+            row=2, column=0, columnspan=4, stick=tk.EW, padx=5, pady=(10, 5))
+        self._show_hide_button = ttk.Button(
+            self, text=BULLETIN_SHOW_BUTTON_LABEL, command=self._on_show_hide)
+        self._show_hide_button.grid(
+            row=3, column=2, stick=tk.EW, pady=(10, 5))
+        if not self._scoreboard:
+            self._show_hide_button['state'] = tk.DISABLED
+        ttk.Button(
+            self,
+            text=BULLETIN_QUIT_BUTTON_LABEL,
+            command=self._on_delete_window).grid(
+                row=3, column=3, stick=tk.EW, padx=5, pady=(10, 5))
+        self.grid_columnconfigure(1, weight=1)
+        widget.center_window(self)
+
+    def _is_running(self):
+        return self._show_hide_button['text'] == BULLETIN_HIDE_BUTTON_LABEL
+
+    def _on_show_hide(self):
+        if self._is_running():
+            entry_state = tk.NORMAL
+            button_label = BULLETIN_SHOW_BUTTON_LABEL
+            self._scoreboard.hide_scrolling_text()
+        else:
+            entry_state = tk.DISABLED
+            button_label = BULLETIN_HIDE_BUTTON_LABEL
+            self._scoreboard.show_scrolling_text(
+                self._text.get(), self._DELAYS[self._delay.get()])
+        self._text['state'] = entry_state
+        self._delay['state'] = entry_state
+        self._show_hide_button['text'] = button_label
+
+    def _on_delete_window(self):
+        if self._is_running():
+            self._on_show_hide()
+        self._close_callback()
+        self.destroy()
+
+
+class InputNumberDialog(widget.BaseDialog):
 
     def __init__(self, master, title, message, default):
         self.value = ''
         self._message = message
         self._default = default
-        BaseDialog.__init__(self, master, title)
+        widget.BaseDialog.__init__(self, master, title)
 
     def body(self, master):
         self._value = tk.StringVar()
@@ -64,11 +149,11 @@ class InputNumberDialog(BaseDialog):
             command=self._on_rubout).grid(
                 row=5, column=2, stick=tk.EW, padx=5, pady=(20, 5))
         ttk.Separator(master, orient='horizontal').grid(
-            row=6, column=0, columnspan=3, stick=tk.EW, pady=(20, 5))
+            row=6, column=0, columnspan=3, stick=tk.EW, pady=(10, 5))
         ttk.Button(master, text=OK_BUTTON_LABEL, command=self.ok).grid(
-            row=7, column=1, stick=tk.W, padx=5, pady=(20, 5))
+            row=7, column=1, stick=tk.W, padx=5, pady=(10, 5))
         ttk.Button(master, text=CANCEL_BUTTON_LABEL, command=self.cancel).grid(
-            row=7, column=2, stick=tk.W, padx=5, pady=(20, 5))
+            row=7, column=2, stick=tk.W, padx=5, pady=(10, 5))
         self.bind("<Key-0>", self._on_0)
         self.bind("<Key-1>", self._on_1)
         self.bind("<Key-2>", self._on_2)

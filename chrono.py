@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 
-from dialog import InputTimeDialog
+from common import InputTimeDialog
 from palette import Palette
 from widget import StyledFrame
 
@@ -341,6 +341,12 @@ class TimerWidget(StyledFrame):
         self._font = font
         self._was_running = self._timer.is_running()
         StyledFrame.__init__(self, root)
+
+    def now(self):
+        return self._timer.now()
+
+    def figures(self):
+        return self._timer.figures()
 
     def change_timer(self, timer):
         self._timer = timer
