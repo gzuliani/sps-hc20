@@ -25,6 +25,7 @@ class GamePhase(object):
     def __init__(self, id, is_live):
         self.id = id
         self.is_live = is_live
+        self.is_expired = False
 
     def can_be_suspended(self):
         return self.id in [self.FIRST_PERIOD, self.SECOND_PERIOD]
@@ -83,7 +84,8 @@ class GameCourse(object):
         return current_phase + 1
 
     def _interleave_intervals(self, live_game_phases):
-        intervals = [Interval(GamePhase.INTERVAL)] * len(live_game_phases)
+        intervals = [Interval(GamePhase.INTERVAL)
+            for i in range(len(live_game_phases))]
         phase_interval_pairs = zip(live_game_phases, intervals)
         return \
             [ Interval(GamePhase.BEFORE_MATCH) ] \
@@ -120,15 +122,15 @@ class KnockOutGameCourse(GameCourse):
             LiveGamePhase(GamePhase.SECOND_PERIOD, period_duration),
             LiveGamePhase(GamePhase.FIRST_EXTRA_PERIOD, extra_period_duration),
             LiveGamePhase(GamePhase.SECOND_EXTRA_PERIOD, extra_period_duration),
-            LiveGamePhase(GamePhase.PENALTIES, 0),
+            LiveGamePhase(GamePhase.PENALTIES, 30),
         ]
 
     def _next_phase(self, current_phase, score):
         if self._phases[current_phase].id == GamePhase.SECOND_PERIOD \
             or self._phases[current_phase].id == GamePhase.SECOND_EXTRA_PERIOD:
             if score[0] != score[1]:
-                # game is over
-                return len(self._phases) - 1
+                # game is over, remove unused phases
+                del self._phases[current_phase + 1:-1]
         return current_phase + 1
 
 
@@ -161,6 +163,9 @@ class Team(object):
                 return False
         self._called_timeouts[phase] += 1
         return True
+
+    def called_timeouts(self):
+        return sum(self._called_timeouts.values())
 
 
 # players
@@ -454,7 +459,7 @@ class Suspensions(object):
                 expiring_minute -= curr_phase.duration
                 return Timestamp(next_phase, expiring_minute, start.second)
             else:
-                return None
+                return Timestamp(curr_phase, curr_phase.duration, 0)
 
     def __len__(self):
         return len(self._suspensions)
@@ -469,14 +474,14 @@ class Suspensions(object):
 # game
 class Game(object):
 
-    def __init__(self, course, timer, observer=None):
+    def __init__(self, course, stopwatch, observer=None):
         self._safe_copy_of_course = course
-        self._timer = timer
+        self._stopwatch = stopwatch
         self._observer = observer if observer else ThrowingObserver()
         self._reset()
 
     def _reset(self):
-        self._course = copy.copy(self._safe_copy_of_course)
+        self._course = copy.deepcopy(self._safe_copy_of_course)
         self._teams = dict([(id, Team(id)) for id in [TEAM_A_ID, TEAM_B_ID]])
         self._players = {}
         self._suspensions = Suspensions(self._course)
@@ -499,6 +504,9 @@ class Game(object):
 
     def players(self, team_id):
         return self._players_in_team(team_id)
+
+    def called_timeouts(self, team_id):
+        return self._teams[team_id].called_timeouts()
 
     @property
     def suspensions(self):
@@ -556,6 +564,7 @@ class Game(object):
 
     def phase_expired(self, timestamp=None):
         was_prior_phase_live = self.is_live()
+        self._course.current_phase().is_expired = True
         self._course.enter_next_phase(self.score())
         return self._register_event(
             PhaseExpired(self._timestamp(timestamp), was_prior_phase_live))
@@ -569,11 +578,14 @@ class Game(object):
     def current_phase(self):
         return self._course.current_phase()
 
+    def phases(self):
+        return [p for p in self._course]
+
     def next_phase(self):
         return self._course.next_phase(self.score())
 
     def timestamp(self):
-        minute, second, _ = self._timer.peek()
+        minute, second, _ = self._stopwatch.now()
         return Timestamp(self.current_phase(), minute, second)
 
     def _timestamp(self, timestamp):
@@ -825,13 +837,13 @@ class TestCountingObserver(object):
         return True
 
 
-class TestTimer(object):
+class TestStopwatch(object):
 
     def __init__(self):
         self._minute = 0
         self._second = 0
 
-    def peek(self):
+    def now(self):
         return (self._minute, self._second, 0)
 
     def set(self, minute, second):
@@ -842,8 +854,8 @@ class TestTimer(object):
 class TestGame(unittest.TestCase):
 
     def setUp(self):
-        self.timer = TestTimer()
-        self.match = Game(ChampionshipGameCourse(25), self.timer)
+        self.stopwatch = TestStopwatch()
+        self.match = Game(ChampionshipGameCourse(25), self.stopwatch)
 
     def test_initial_score_is_null(self):
         self.assertEqual(self.match.score(), (0, 0))
@@ -1001,7 +1013,7 @@ class TestGame(unittest.TestCase):
             self.match.timeout('B')
 
     def test_team_cannot_call_a_timeout_during_extra_times(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
         match.phase_expired() # enter first period
         match.phase_expired() # entering interval
         match.phase_expired() # entering second period
@@ -1101,27 +1113,27 @@ class TestGame(unittest.TestCase):
         self.assertEqual(player_b4.dismissed, False)
 
     def test_game_events_are_sorted_by_increasing_phase_and_time(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired(self.match.timestamp()) # entering first period
-        self.timer.set(7, 12)
+        self.stopwatch.set(7, 12)
         self.match.player_scored('A1')
-        self.timer.set(2, 59)
+        self.stopwatch.set(2, 59)
         self.match.player_warned('A2')
-        self.timer.set(14, 6)
+        self.stopwatch.set(14, 6)
         self.match.penalty_missed('A3')
-        self.timer.set(0, 43)
+        self.stopwatch.set(0, 43)
         self.match.player_suspended('A4')
-        self.timer.set(25, 0)
+        self.stopwatch.set(25, 0)
         self.match.phase_expired() # entering interval
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering second period
-        self.timer.set(10, 23)
+        self.stopwatch.set(10, 23)
         self.match.player_warned('A5')
-        self.timer.set(1, 50)
+        self.stopwatch.set(1, 50)
         self.match.timeout('A')
-        self.timer.set(8, 35)
+        self.stopwatch.set(8, 35)
         self.match.penalty_scored('A6')
-        self.timer.set(25, 0)
+        self.stopwatch.set(25, 0)
         self.match.phase_expired() # entering after match
 
         events = [e for e in self.match]
@@ -1235,7 +1247,7 @@ class TestGame(unittest.TestCase):
 
     def test_deleting_game_events_can_cause_inconsistencies(self):
         observer = TestCountingObserver()
-        match = Game(ChampionshipGameCourse(25), self.timer, observer)
+        match = Game(ChampionshipGameCourse(25), self.stopwatch, observer)
         self.assertEqual(observer.additional_period_timeouts, 0)
         self.assertEqual(observer.goal_from_dismissed_player, 0)
         self.assertEqual(observer.events_during_non_live_phase, 0)
@@ -1266,7 +1278,8 @@ class TestGame(unittest.TestCase):
         self.assertEqual(observer.events_during_non_live_phase, 1)
 
     def test_deleting_game_events_with_custom_observer(self):
-        match = Game(ChampionshipGameCourse(25), self.timer, TestNullObserver())
+        match = Game(
+            ChampionshipGameCourse(25), self.stopwatch, TestNullObserver())
 
         match.phase_expired() # entering first period
         match.timeout('A')
@@ -1292,7 +1305,7 @@ class TestGame(unittest.TestCase):
 
 
     def test_knockout_game_end_with_penalties(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
         self.assertEqual(match.current_phase().id, GamePhase.BEFORE_MATCH)
         match.phase_expired()
         self.assertEqual(match.current_phase().id, GamePhase.FIRST_PERIOD)
@@ -1326,7 +1339,7 @@ class TestGame(unittest.TestCase):
         self.assertEqual(match.current_phase().id, GamePhase.AFTER_MATCH)
 
     def test_knockout_game_end_at_extra_times(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
         self.assertEqual(match.current_phase().id, GamePhase.BEFORE_MATCH)
         match.phase_expired()
         self.assertEqual(match.current_phase().id, GamePhase.FIRST_PERIOD)
@@ -1355,7 +1368,7 @@ class TestGame(unittest.TestCase):
         self.assertEqual(match.current_phase().id, GamePhase.AFTER_MATCH)
 
     def test_knockout_game_end_on_regular_times(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
         self.assertEqual(match.current_phase().id, GamePhase.BEFORE_MATCH)
         match.phase_expired()
         self.assertEqual(match.current_phase().id, GamePhase.FIRST_PERIOD)
@@ -1375,8 +1388,8 @@ class TestGame(unittest.TestCase):
 class TestSuspensions(unittest.TestCase):
 
     def setUp(self):
-        self.timer = TestTimer()
-        self.match = Game(ChampionshipGameCourse(25), self.timer)
+        self.stopwatch = TestStopwatch()
+        self.match = Game(ChampionshipGameCourse(25), self.stopwatch)
 
     def test_game_without_suspensions(self):
         self.assertEqual(len(self.match.suspensions), 0)
@@ -1390,9 +1403,9 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(len(self.match.suspensions), 0)
 
     def test_suspension_in_the_first_period(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
-        self.timer.set(12, 34)
+        self.stopwatch.set(12, 34)
         self.match.player_suspended('A1')
         self.assertEqual(len(self.match.suspensions), 1)
         suspension = self.match.suspensions[0]
@@ -1408,9 +1421,9 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.second, 34)
 
     def test_suspension_at_the_very_end_of_the_first_period(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
-        self.timer.set(23, 0)
+        self.stopwatch.set(23, 0)
         self.match.player_suspended('A1')
         self.assertEqual(len(self.match.suspensions), 1)
         suspension = self.match.suspensions[0]
@@ -1420,9 +1433,9 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.second, 0)
 
     def test_suspension_overlapping_the_first_two_periods(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
-        self.timer.set(23, 1)
+        self.stopwatch.set(23, 1)
         self.match.player_suspended('A1')
         self.assertEqual(len(self.match.suspensions), 1)
         suspension = self.match.suspensions[0]
@@ -1432,23 +1445,24 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.second, 1)
 
     def test_suspension_that_expires_past_the_end_of_the_game(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
         self.match.phase_expired() # entering interval
         self.match.phase_expired() # entering second period
-        self.timer.set(23, 1)
+        self.stopwatch.set(23, 1)
         self.match.player_suspended('A1')
         self.assertEqual(len(self.match.suspensions), 1)
         suspension = self.match.suspensions[0]
-        self.assertEqual(suspension.expiration, None)
+        self.assertEqual(suspension.expiration.minute, 25)
+        self.assertEqual(suspension.expiration.second, 0)
 
     def test_suspension_at_the_very_end_of_the_second_period(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
-        self.timer.set(0, 0)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
+        self.stopwatch.set(0, 0)
         match.phase_expired() # entering first period
         match.phase_expired() # entering interval
         match.phase_expired() # entering second period
-        self.timer.set(23, 1)
+        self.stopwatch.set(23, 1)
         match.player_suspended('A1')
         self.assertEqual(len(match.suspensions), 1)
         suspension = match.suspensions[0]
@@ -1458,21 +1472,21 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.second, 1)
 
     def test_game_with_several_suspensions(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
-        self.timer.set(7, 43)
+        self.stopwatch.set(7, 43)
         self.match.player_suspended('A1')
-        self.timer.set(16, 12)
+        self.stopwatch.set(16, 12)
         self.match.player_suspended('B1')
-        self.timer.set(24, 52)
+        self.stopwatch.set(24, 52)
         self.match.player_suspended('A2')
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering interval
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering second period
-        self.timer.set(9, 38)
+        self.stopwatch.set(9, 38)
         self.match.player_suspended('B2')
-        self.timer.set(23, 1)
+        self.stopwatch.set(23, 1)
         self.match.player_suspended('A1')
         self.assertEqual(len(self.match.suspensions), 5)
         suspension = self.match.suspensions[0]
@@ -1496,23 +1510,24 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.minute, 11)
         self.assertEqual(suspension.expiration.second, 38)
         suspension = self.match.suspensions[4]
-        self.assertEqual(suspension.expiration, None)
+        self.assertEqual(suspension.expiration.minute, 25)
+        self.assertEqual(suspension.expiration.second, 0)
 
     def test_suspensions_support_event_deletion(self):
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering first period
-        self.timer.set(7, 43)
+        self.stopwatch.set(7, 43)
         self.match.player_suspended('A1')
-        self.timer.set(16, 12)
+        self.stopwatch.set(16, 12)
         self.match.player_suspended('B1')
-        self.timer.set(24, 52)
+        self.stopwatch.set(24, 52)
         self.match.player_suspended('A2')
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         self.match.phase_expired() # entering interval
         self.match.phase_expired() # entering second period
-        self.timer.set(9, 38)
+        self.stopwatch.set(9, 38)
         self.match.player_suspended('B2')
-        self.timer.set(23, 1)
+        self.stopwatch.set(23, 1)
         self.match.player_suspended('A1')
 
         self.match.delete_event(2)
@@ -1534,37 +1549,38 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(suspension.expiration.minute, 11)
         self.assertEqual(suspension.expiration.second, 38)
         suspension = self.match.suspensions[3]
-        self.assertEqual(suspension.expiration, None)
+        self.assertEqual(suspension.expiration.minute, 25)
+        self.assertEqual(suspension.expiration.second, 0)
 
     def test_is_expired_predicate(self):
-        match = Game(KnockOutGameCourse(25, 5), self.timer)
-        self.timer.set(0, 0)
+        match = Game(KnockOutGameCourse(25, 5), self.stopwatch)
+        self.stopwatch.set(0, 0)
         match.phase_expired() # entering first period
-        self.timer.set(20, 15)
+        self.stopwatch.set(20, 15)
         pre_suspension_timestamp_1 = match.timestamp()
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         match.phase_expired() # entering interval
         match.phase_expired() # entering second period
-        self.timer.set(12, 33)
+        self.stopwatch.set(12, 33)
         pre_suspension_timestamp_2 = match.timestamp()
-        self.timer.set(12, 34)
+        self.stopwatch.set(12, 34)
         match.player_suspended('A1')
         in_suspension_timestamp_1 = match.timestamp()
-        self.timer.set(13, 46)
+        self.stopwatch.set(13, 46)
         in_suspension_timestamp_2 = match.timestamp()
-        self.timer.set(14, 34)
+        self.stopwatch.set(14, 34)
         in_suspension_timestamp_3 = match.timestamp()
-        self.timer.set(14, 35)
+        self.stopwatch.set(14, 35)
         post_suspension_timestamp_1 = match.timestamp()
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         match.phase_expired() # entering interval
         match.phase_expired() # entering first extra period
-        self.timer.set(1, 23)
+        self.stopwatch.set(1, 23)
         post_suspension_timestamp_2 = match.timestamp()
-        self.timer.set(0, 0)
+        self.stopwatch.set(0, 0)
         match.phase_expired() # entering interval
         match.phase_expired() # entering second extra period
-        self.timer.set(4, 56)
+        self.stopwatch.set(4, 56)
         post_suspension_timestamp_3 = match.timestamp()
 
         self.assertTrue(len(match.suspensions), 1)

@@ -12,7 +12,9 @@ except:
     import ttk
     import tkMessageBox
 
+import Queue
 import re
+import sys
 import threading
 import time
 
@@ -21,21 +23,23 @@ from palette import Palette
 from widget import StyledFrame
 
 
-# timer-related labels
-TIMER_START_BUTTON_LABEL = "Avvia"
-TIMER_STOP_BUTTON_LABEL = "Pausa"
-TIMER_SET_BUTTON_LABEL = "Cambia"
-TIMER_RESET_BUTTON_LABEL = "Azzera"
-SET_TIMER_VALUE = "Impostazione Timer"
-INPUT_TIMER_VALUE = "Immettere il nuovo orario (MM:SS):"
-INVALID_TIMER_VALUE = \
+# time-related labels
+TIME_START_BUTTON_LABEL = "Avvia"
+TIME_STOP_BUTTON_LABEL = "Pausa"
+TIME_SET_BUTTON_LABEL = "Cambia"
+TIME_RESET_BUTTON_LABEL = "Azzera"
+SET_TIME_VALUE = "Impostazione Tempo"
+INPUT_TIME_VALUE = "Immettere il nuovo orario (MM:SS):"
+INVALID_TIME_VALUE = \
     "L'orario \"{}\" non è valido.\n\n" \
     "Minuti e secondi vanno specificati usando due cifre, " \
     "il numero di secondi dev'essere inferiore a 60 e i due " \
     "devono essere separati da un carattere qualunque."
 
-
 class ThreadedClock(object):
+
+    STOP = 1
+    CONTINUE = 2
 
     def __init__(self, resolution):
         self._thread = None
@@ -66,29 +70,35 @@ class ThreadedClock(object):
             else:
                 if self._observer:
                     for i in range(new_point_in_time - point_in_time):
-                        self._observer.tick()
+                        if self._observer.tick() == self.STOP:
+                            self._should_stop = True
+                            self._thread = None
                 point_in_time = new_point_in_time
 
 
-class Timer(object):
+class Stopwatch(object):
 
     def __init__(self):
         self._resolution = -2 # set resolution to 1/100s
         self._clock = ThreadedClock(self._resolution)
         self._ticks_to_seconds = float(10 ** (-self._resolution))
         self._clock.register(self)
-        self._ticks = 0
         self._is_running = False
+        self._triggers = []
+        self._observers = []
+        self._set(0)
 
-    def peek(self):
-        elapsed = self._ticks / self._ticks_to_seconds
-        return (int(elapsed / 60), int(elapsed) % 60, int(100 * elapsed) % 100)
+    def register_trigger(self, trigger):
+        self._triggers.append(trigger)
+
+    def register_observer(self, observer):
+        self._observers.append(observer)
+
+    def now(self):
+        return self._time
 
     def is_running(self):
         return self._is_running
-
-    def is_reset(self):
-        return self._ticks == 0
 
     def start_stop(self):
         self._clock.start_stop()
@@ -104,48 +114,111 @@ class Timer(object):
 
     def set(self, minute, second):
         assert not self._is_running
-        self._ticks = (minute * 60 + second) * self._ticks_to_seconds
+        self._set((minute * 60 + second) * self._ticks_to_seconds)
+        for observer in self._observers:
+            observer.time_changed(*self._time)
 
     def reset(self):
-        assert not self._is_running
-        self._ticks = 0
+        self.set(0, 0)
 
     def tick(self):
+        _time = self._ticks_to_time()
+        if _time == (99, 59, 9):
+            self._is_running = False
+            return ThreadedClock.STOP
         self._ticks += 1
+        _time = self._ticks_to_time()
+        if _time != self._time:
+            self._time = _time
+            if any([t.should_stop(*self._time) for t in self._triggers]):
+                self._is_running = False
+                return ThreadedClock.STOP
+        return ThreadedClock.CONTINUE
+
+    def _set(self, ticks):
+        self._ticks = ticks
+        self._time = self._ticks_to_time()
+
+    def _ticks_to_time(self):
+        elapsed = self._ticks / self._ticks_to_seconds
+        return (int(elapsed / 60), int(elapsed) % 60, int(10 * elapsed) % 10)
 
 
-class StopWatch(object):
+class Period(object):
 
-    def __init__(self, timer, observer=None):
-        self._timer = timer
-        self._stop_minute = None
-        self._observer = observer
+    def __init__(self, stopwatch):
+        self._stopwatch = stopwatch
+        self._stopwatch.register_trigger(self)
+        self._stopwatch.register_observer(self)
+        self._duration = None
+        self._expired_periods = []
 
-    def stop_at_minute(self, minute):
-        self._stop_minute = minute
+    def is_last_minute(self):
+        minute, _, _ = self._stopwatch.now()
+        return self._elapsed_time(minute) % self._duration == self._duration - 1
 
-    def tick(self):
-        minute, _, _ = self._timer.peek()
-        if self._stop_minute \
-            and self._timer.is_running() \
-            and minute >= self._stop_minute:
-            self._timer.stop()
-            if self._observer:
-                self._observer.on_stop()
+    def set_duration(self, minutes, queue):
+        self._duration = minutes
+        self._queue = queue
+
+    # Stopwatch's observer callback
+    def time_changed(self, minute, second, tenth):
+        self._expired_periods = [x for x in self._expired_periods if x < minute]
+
+    # Stopwatch's trigger callback
+    def should_stop(self, minute, second, tenth):
+        if tenth == 0 and second == 0 and self._is_expired(minute):
+            if self._queue:
+                self._queue.put(minute)
+            self._expired_periods.append(minute)
+            return True
+        return False
+
+    def _is_expired(self, minute):
+        return self._elapsed_time(minute) % self._duration == 0
+
+    def _elapsed_time(self, minute):
+        return minute - max(self._expired_periods or [0])
+
+
+class Trigger(object):
+
+    def __init__(self, stopwatch):
+        self._stopwatch = stopwatch
+        self._stopwatch.register_trigger(self)
+        self._minute = None
+        self._second = None
+        self._queue = None
+
+    def arm(self, minute, second, queue):
+        self._minute, self._second = minute, second
+        self._queue = queue
+
+    # Stopwatch's trigger callback
+    def should_stop(self, minute, second, tenth):
+        if not self._queue:
+            return False
+        if minute == self._minute and second == self._second and tenth == 0:
+            self._queue.put((minute, second))
+        return False
 
 
 class TimeViewConfig(object):
 
     def __init__(
         self,
-        period_duration=30,
-        countdown=False,
+        aggregate_time=False,
         leading_zero_in_minute=False,
-        hires_timer_on_last_minute=True):
-            self.period_duration = period_duration
-            self.countdown = countdown
+        tenth_second_on_last_minute=True):
+            self.aggregate_time = aggregate_time
             self.leading_zero_in_minute = leading_zero_in_minute
-            self.hires_timer_on_last_minute = hires_timer_on_last_minute
+            self.tenth_second_on_last_minute = tenth_second_on_last_minute
+
+    def to_aggregate_time(self, phase, minute, second, tenth):
+        raise NotImplementedError
+
+    def to_period_time(self, phase, minute, second, tenth):
+        raise NotImplementedError
 
 
 class TimeView(object):
@@ -160,48 +233,102 @@ class TimeView(object):
         else:
             self._layout = '{: >2d}:{:02d}'
 
-    def peek_figures(self, timer):
-        minute, second, cent = timer.peek()
-        is_last_minute = (minute == self._config.period_duration - 1)
-        minute, second, cent = self._adjust(minute, second, cent)
-        if self._config.hires_timer_on_last_minute and is_last_minute:
-            left, right = second, (cent / 10) * 10
+    def figures(self, stopwatch, period):
+        minute, second, tenth = self._transform(*stopwatch.now())
+        if self._config.tenth_second_on_last_minute and period.is_last_minute():
+            left, right = second, tenth * 10
         else:
             left, right = minute, second
         return left, right
 
-    def peek_label(self, timer):
-        return self._layout.format(*self.peek_figures(timer))
-
-    def adjust(self, minute, second):
-        minute, second, _ = self._normalize(minute, second, 0)
-        if self._config.countdown:
-            return self._invert(minute, second, 0)[:2]
-        else:
-            return minute, second
+    def figures_as_text(self, stopwatch, period):
+        return self._layout.format(*self.figures(stopwatch, period))
 
     def render(self, minute, second):
-        return self._layout.format(*self.adjust(minute, second))
+        minute, second, _ = self._transform(minute, second, 0)
+        return minute, second
 
-    def _adjust(self, minute, second, cent):
-        minute, second, cent = self._normalize(minute, second, cent)
-        if self._config.countdown:
-            return self._invert(minute, second, cent)
+    def render_as_text(self, timestamp):
+        minute, second, _ = self._transform(
+            timestamp.minute, timestamp.second, 0, timestamp.phase)
+        return self._layout.format(minute, second)
+
+    def revert(self, minute, second):
+        if self._config.aggregate_time:
+            minute, second, _ = \
+                self._config.to_period_time(None, minute, second, 0)
+        return minute, second
+
+    def _transform(self, minute, second, tenth, phase=None):
+        if self._config.aggregate_time:
+            return self._config.to_aggregate_time(phase, minute, second, tenth)
         else:
-            return minute, second, cent
+            return minute, second, tenth
 
-    def _normalize(self, minute, second, cent):
-        if minute >= self._config.period_duration:
-            return self._config.period_duration, 0, 0
-        else:
-            return minute, second, cent
 
-    def _invert(self, minute, second, cent):
-        cent = (100 - cent) % 100
-        second = (60 - second - (1 if cent > 0 else 0)) % 60
-        minute = self._config.period_duration - minute - (
-            1 if second > 0 or cent > 0 else 0)
-        return minute , second, cent
+class Timer(object):
+
+    def __init__(self, config=TimeViewConfig()):
+        self._stopwatch = Stopwatch()
+        self._period = Period(self._stopwatch)
+        self._period_queue = Queue.Queue()
+        self._trigger = Trigger(self._stopwatch)
+        self._trigger_queue = Queue.Queue()
+        self._time_view = TimeView(config=config)
+
+    def configure(self, config):
+        self._time_view.configure(config)
+
+    def set_period_duration(self, minutes):
+        self._period.set_duration(minutes, self._period_queue)
+
+    def arm_trigger(self, minute, second):
+        self._trigger.arm(minute, second, self._trigger_queue)
+
+    def is_running(self):
+        return self._stopwatch.is_running()
+
+    def is_expired(self):
+        try:
+            self._period_queue.get_nowait()
+            return True
+        except Queue.Empty:
+            return False
+
+    def is_triggered(self):
+        try:
+            self._trigger_queue.get_nowait()
+            return True
+        except Queue.Empty:
+            return False
+
+    def now(self):
+        return self._stopwatch.now()
+
+    def peek(self):
+        minute, second, _ = self._stopwatch.now()
+        return self._time_view.render(minute, second)
+
+    def start(self):
+        return self._stopwatch.start()
+
+    def stop(self):
+        return self._stopwatch.stop()
+
+    def start_stop(self):
+        return self._stopwatch.start_stop()
+
+    def set(self, minute, second):
+        self._stopwatch.set(*self._time_view.revert(minute, second))
+
+    def reset(self):
+        self._stopwatch.reset()
+
+    def figures(self):
+        return self._time_view.figures(self._stopwatch, self._period)
+
+    def figures_as_text(self):
+        return self._time_view.figures_as_text(self._stopwatch, self._period)
 
 
 class TimerWidget(StyledFrame):
@@ -209,12 +336,23 @@ class TimerWidget(StyledFrame):
     _INPUT_FORMAT = re.compile('^(\d{2}).([0-5]\d)$')
     _OUTPUT_FORMAT = '{:02}:{:02}'
 
-    def __init__(self, root, timer, time_view, font):
+    def __init__(self, root, timer, font):
         self._timer = timer
-        self._time_view = time_view
         self._font = font
         self._was_running = self._timer.is_running()
         StyledFrame.__init__(self, root)
+
+    def change_timer(self, timer):
+        self._timer = timer
+
+    def update(self):
+        text = self._timer.figures_as_text()
+        if text != self._time['text']:
+            self._time['text'] = text
+        is_running = self._timer.is_running()
+        if self._was_running != is_running:
+            self._was_running = is_running
+            self._update_buttons_state()
 
     def _create_widgets(self):
         self._time = ttk.Label(
@@ -222,11 +360,11 @@ class TimerWidget(StyledFrame):
             font=self._font)
         self._time['foreground'] = Palette.RED
         self._start_stop_button = ttk.Button(
-            self._frame, text=TIMER_START_BUTTON_LABEL)
+            self._frame, text=TIME_START_BUTTON_LABEL)
         self._set_button = ttk.Button(
-            self._frame, text=TIMER_SET_BUTTON_LABEL)
+            self._frame, text=TIME_SET_BUTTON_LABEL)
         self._reset_button = ttk.Button(
-            self._frame, text=TIMER_RESET_BUTTON_LABEL)
+            self._frame, text=TIME_RESET_BUTTON_LABEL)
 
     def _create_bindings(self):
         self._start_stop_button['command'] = self._on_start_stop
@@ -247,12 +385,11 @@ class TimerWidget(StyledFrame):
     def _on_set(self, event=None):
         if self._timer.is_running():
             return
-        minute, second, _ = self._timer.peek()
-        minute, second = self._time_view.adjust(minute, second)
+        minute, second = self._timer.peek()
         dialog = InputTimeDialog(
             self._root,
-            SET_TIMER_VALUE,
-            INPUT_TIMER_VALUE,
+            SET_TIME_VALUE,
+            INPUT_TIME_VALUE,
             self._OUTPUT_FORMAT.format(minute, second))
         new_time = dialog.value
         if not new_time:
@@ -261,35 +398,25 @@ class TimerWidget(StyledFrame):
         if not result:
             tkMessageBox.showerror(
                 APP_NAME,
-                INVALID_TIMER_VALUE.format(new_time))
+                INVALID_TIME_VALUE.format(new_time))
             return
         minute = int(result.group(1))
         second = int(result.group(2))
-        minute, second = self._time_view.adjust(minute, second)
         self._timer.set(minute, second)
-        self.refresh()
+        self.update()
 
     def _on_reset(self, event=None):
         if self._timer.is_running():
             return
         self._timer.reset()
-        self.refresh()
+        self.update()
 
     def _update_buttons_state(self):
         if self._timer.is_running():
-            self._start_stop_button['text'] = TIMER_STOP_BUTTON_LABEL
+            self._start_stop_button['text'] = TIME_STOP_BUTTON_LABEL
             self._disable(self._set_button)
             self._disable(self._reset_button)
         else:
-            self._start_stop_button['text'] = TIMER_START_BUTTON_LABEL
+            self._start_stop_button['text'] = TIME_START_BUTTON_LABEL
             self._enable(self._set_button)
             self._enable(self._reset_button)
-
-    def refresh(self):
-        label = self._time_view.peek_label(self._timer)
-        if label != self._time['text']:
-            self._time['text'] = label
-        is_running = self._timer.is_running()
-        if self._was_running != is_running:
-            self._was_running = is_running
-            self._update_buttons_state()

@@ -7,13 +7,13 @@ setup(
             "script": "report.py",
             "icon_resources": [(1, "report.ico")],
             "name": "report",
-            "version": "0.1",
+            "version": "0.2",
         },
         {
             "script": "consolle.py",
             "icon_resources": [(1, "consolle.ico")],
             "name": "consolle",
-            "version": "0.1",
+            "version": "0.2",
         },
     ],
     data_files = [('', ['report.gif', 'consolle.gif'])])

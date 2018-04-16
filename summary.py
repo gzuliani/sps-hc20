@@ -8,8 +8,7 @@ import chrono
 
 
 def render_timestamp(timestamp, config):
-    config.period_duration = timestamp.phase.duration
-    return chrono.TimeView(config).render(timestamp.minute, timestamp.second)
+    return chrono.TimeView(config).render_as_text(timestamp)
 
 
 class EventList(object):
@@ -90,7 +89,8 @@ class Suspensions(object):
         return self._SUSPENSION.format(
             suspension.player.number,
             render_timestamp(suspension.expiration, config),
-            self._game_phase_names[suspension.expiration.phase.id])
+            '' if config.aggregate_time
+                else self._game_phase_names[suspension.expiration.phase.id])
 
 
 class TestEventList(unittest.TestCase):
@@ -141,8 +141,9 @@ class TestEventList(unittest.TestCase):
         ])
 
     def test_report_leading_zero(self):
-        self.assertEqual(EventList().render_game(
-            match, chrono.TimeViewConfig(leading_zero_in_minute=True)), [
+        config = chrono.TimeViewConfig()
+        config.leading_zero_in_minute = True
+        self.assertEqual(EventList().render_game(match, config), [
             '//////////////////////////////////',
             '   1  00:15   1            01:00  ',
             '   2  00:47  12            02:00  ',
@@ -185,50 +186,6 @@ class TestEventList(unittest.TestCase):
             '//////////////////////////////////',
         ])
 
-    def test_report_countdown(self):
-        self.assertEqual(EventList().render_game(
-            match, chrono.TimeViewConfig(countdown=True)), [
-            '//////////////////////////////////',
-            '   1  24:45   1            01:00  ',
-            '   2  24:13  12            02:00  ',
-            '   3  23:56        9   2M  02:00  ',
-            '   4  23:02        3       02:01  ',
-            '   5  21:25   6        AMM 02:01  ',
-            '   6  19:19   6        R   02:01  ',
-            '   7  18:48        8       02:02  ',
-            '   8  17:19   3            03:02  ',
-            '   9  15:55   2            04:02  ',
-            '  10  13:55  TO        TO  04:02  ',
-            '  11  12:01       10   SQ  04:02  ',
-            '  12  10:37       TO   TO  04:02  ',
-            '  13   8:45   5            05:02  ',
-            '  14   7:01        9       05:03  ',
-            '  15   5:46        9   (R) 05:04  ',
-            '  16   3:29        9   2M  05:04  ',
-            '  17   3:20  11        (R) 06:04  ',
-            '  18   1:26        9   R   06:04  ',
-            '//////////////////////////////////',
-            '//////////////////////////////////',
-            '  21  22:42        9   2M  06:04  ',
-            '  22  21:54   3        AMM 06:04  ',
-            '  23  20:43   4            07:04  ',
-            '  24  19:49   4        R   07:04  ',
-            '  25  18:08        6       07:05  ',
-            '  26  16:42        6       07:06  ',
-            '  27  15:31       TO   TO  07:06  ',
-            '  28  14:58        7       07:07  ',
-            '  29  14:21   9        AMM 07:07  ',
-            '  30  11:52   3        2M  07:07  ',
-            '  31   9:50  TO        TO  07:07  ',
-            '  32   9:42   2        AMM 07:07  ',
-            '  33   8:54        7       07:08  ',
-            '  34   6:17        7       07:09  ',
-            '  35   4:40        7   R   07:09  ',
-            '  36   2:24   2            08:09  ',
-            '  37   1:45   5            09:09  ',
-            '  38   0:50   7            10:09  ',
-            '//////////////////////////////////',
-        ])
 
 class TestTeamStats(unittest.TestCase):
 
@@ -254,13 +211,13 @@ class TestTeamStats(unittest.TestCase):
             ' 10                X       '])
 
 
-class TestTimer(object):
+class TestStopwatch(object):
 
     def __init__(self):
         self._minute = 0
         self._second = 0
 
-    def peek(self):
+    def now(self):
         return self._minute, self._second, 0
 
     def set(self, minute, second):
@@ -269,87 +226,87 @@ class TestTimer(object):
 
 
 if __name__ == '__main__':
-    timer = TestTimer()
-    match = game.Game(game.ChampionshipGameCourse(25), timer)
-    timer.set(0, 0)
+    stopwatch = TestStopwatch()
+    match = game.Game(game.ChampionshipGameCourse(25), stopwatch)
+    stopwatch.set(0, 0)
     match.phase_expired() # entering first half
-    timer.set(0, 15)
+    stopwatch.set(0, 15)
     match.player_scored('A1')
-    timer.set(0, 47)
+    stopwatch.set(0, 47)
     match.player_scored('A12')
-    timer.set(1, 4)
+    stopwatch.set(1, 4)
     match.player_suspended('B9')
-    timer.set(1, 58)
+    stopwatch.set(1, 58)
     match.player_scored('B3')
-    timer.set(3, 35)
+    stopwatch.set(3, 35)
     match.player_warned('A6')
-    timer.set(5, 41)
+    stopwatch.set(5, 41)
     match.penalty_missed('A6')
-    timer.set(6, 12)
+    stopwatch.set(6, 12)
     match.player_scored('B8')
-    timer.set(7, 41)
+    stopwatch.set(7, 41)
     match.player_scored('A3')
-    timer.set(9, 5)
+    stopwatch.set(9, 5)
     match.player_scored('A2')
-    timer.set(11, 5)
+    stopwatch.set(11, 5)
     match.timeout('A')
-    timer.set(12, 59)
+    stopwatch.set(12, 59)
     match.player_dismissed('B10')
-    timer.set(14, 23)
+    stopwatch.set(14, 23)
     match.timeout('B')
-    timer.set(16, 15)
+    stopwatch.set(16, 15)
     match.player_scored('A5')
-    timer.set(17, 59)
+    stopwatch.set(17, 59)
     match.player_scored('B9')
-    timer.set(19, 14)
+    stopwatch.set(19, 14)
     match.penalty_scored('B9')
-    timer.set(21, 31)
+    stopwatch.set(21, 31)
     match.player_suspended('B9')
-    timer.set(21, 40)
+    stopwatch.set(21, 40)
     match.penalty_scored('A11')
-    timer.set(23, 34)
+    stopwatch.set(23, 34)
     match.penalty_missed('B9')
-    timer.set(25, 0)
+    stopwatch.set(25, 0)
     match.phase_expired() # entering interval
-    timer.set(0, 0)
+    stopwatch.set(0, 0)
     match.phase_expired() # entering second period
-    timer.set(2, 18)
+    stopwatch.set(2, 18)
     match.player_suspended('B9')
-    timer.set(3, 6)
+    stopwatch.set(3, 6)
     match.player_warned('A3')
-    timer.set(4, 17)
+    stopwatch.set(4, 17)
     match.player_scored('A4')
-    timer.set(5, 11)
+    stopwatch.set(5, 11)
     match.penalty_missed('A4')
-    timer.set(6, 52)
+    stopwatch.set(6, 52)
     match.player_scored('B6')
-    timer.set(8, 18)
+    stopwatch.set(8, 18)
     match.player_scored('B6')
-    timer.set(9, 29)
+    stopwatch.set(9, 29)
     match.timeout('B')
-    timer.set(10, 2)
+    stopwatch.set(10, 2)
     match.player_scored('B7')
-    timer.set(10, 39)
+    stopwatch.set(10, 39)
     match.player_warned('A9')
-    timer.set(13, 8)
+    stopwatch.set(13, 8)
     match.player_suspended('A3')
-    timer.set(15, 10)
+    stopwatch.set(15, 10)
     match.timeout('A')
-    timer.set(15, 18)
+    stopwatch.set(15, 18)
     match.player_warned('A2')
-    timer.set(16, 6)
+    stopwatch.set(16, 6)
     match.player_scored('B7')
-    timer.set(18, 43)
+    stopwatch.set(18, 43)
     match.player_scored('B7')
-    timer.set(20, 20)
+    stopwatch.set(20, 20)
     match.penalty_missed('B7')
-    timer.set(22, 36)
+    stopwatch.set(22, 36)
     match.player_scored('A2')
-    timer.set(23, 15)
+    stopwatch.set(23, 15)
     match.player_scored('A5')
-    timer.set(24, 10)
+    stopwatch.set(24, 10)
     match.player_scored('A7')
-    timer.set(25, 0)
+    stopwatch.set(25, 0)
     match.phase_expired() # entering after match
 
     unittest.main()

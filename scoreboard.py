@@ -4,7 +4,7 @@ class Data(object):
 
     def __init__(
         self,
-        timer=(0, 0),
+        timestamp=(0, 0),
         dot=False,
         leading_zero_in_minute=False,
         home_seventh_foul=False,
@@ -23,7 +23,7 @@ class Data(object):
         self.home_second_timeout = home_second_timeout
         self.home_set = home_set
         self.home_score = home_score
-        self.timer = timer
+        self.timestamp = timestamp
         self.dot = dot
         self.leading_zero_in_minute = leading_zero_in_minute
         self.guest_seventh_foul = guest_seventh_foul
@@ -93,7 +93,7 @@ class Scoreboard(object):
     def update(self, data):
         if not self._last_transmitted_data \
             or self._last_transmitted_data != data:
-            minute, second = data.timer
+            minute, second = data.timestamp
             buffer = self._last_transmitted_packet
             # set digits
             buffer[ 1] = self._encode_digit(self._units(data.home_set))

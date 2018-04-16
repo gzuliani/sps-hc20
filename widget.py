@@ -43,6 +43,9 @@ class StyledWidget(object):
     def _disable(self, widget):
         self._set_widget_state(widget, tk.DISABLED)
 
+    def _is_enabled(self, widget):
+        return str(widget['state']) == tk.NORMAL
+
     def _is_disabled(self, widget):
         return str(widget['state']) == tk.DISABLED
 

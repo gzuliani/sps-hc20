@@ -3,9 +3,7 @@
 
 # TODO:
 # if a dimissed player misses a penalty no warning is emitted
-# some referees want timeouts logged in cumulative time, not period time
-# show cumulative time (event.time must become something like (period, time))
-# cumulative time countdown?! maybe they should be mutually exclusive
+# penalties phase duration
 # add/edit event (?)
 
 try:
@@ -25,6 +23,14 @@ except:
     import tkMessageBox
     import tkSimpleDialog
 
+import copy
+import datetime
+import itertools
+import os
+import re
+import sys
+import time
+
 import chrono
 from dialog import InputNumberDialog
 import game
@@ -33,13 +39,10 @@ import scoreboard
 import summary
 import widget
 
-import datetime
-import os
-import re
-import sys
-import time
+TIMEOUT_DURATION = 1 # minutes
+EXTRA_PERIOD_DURATION = 5
 
-TIMER_FONT = ('', 72, 'bold')
+TIME_FONT = ('', 72, 'bold')
 GAME_PHASE_FONT = ('', 36, 'bold')
 GAME_TYPE_FONT = ('', 16, 'bold')
 GAME_PERIOD_DURATION_FONT = ('', 12)
@@ -52,9 +55,9 @@ REPORT_FONT = (REPORT_FONT_NAME, MIN_REPORT_FONT_SIZE)
 
 # main window
 APP_NAME = "Referto Gara"
-APP_VERSION = "0.1" # see setup.py
+APP_VERSION = "0.2" # see setup.py
 
-STOP_TIMER_DURING_PENALTIES_CHECKBOX_LABEL = \
+STOP_TIME_DURING_PENALTIES_CHECKBOX_LABEL = \
     "Ferma il contaminuti durante i rigori"
 GOAL_BUTTON_LABEL = "Goal"
 TIMEOUT_CALL_BUTTON_LABEL = "Time Out"
@@ -273,20 +276,33 @@ CONFIG_DIALOG_TITLE = "Configurazione Generale"
 CONFIG_DIALOG_HEADING = "Definire la modalità di funzionamento preferita:"
 CONFIG_DIALOG_GAME_TYPE_HEADING = "Tipo di partita"
 CONFIG_DIALOG_GAME_TYPE_CHAMPIONSHIP = "Campionato (2 tempi regolamentari)"
-CONFIG_DIALOG_GAME_TYPE_KNOKOUT = "Eliminazione diretta (con tempi supplementari e rigori)"
+CONFIG_DIALOG_GAME_TYPE_KNOKOUT = \
+    "Eliminazione diretta (con tempi supplementari e rigori)"
 CONFIG_DIALOG_PERIOD_DURATION_HEADING = "Durata di un tempo"
+CONFIG_DIALOG_PERIOD_DURATION_TITLE = "Durata di un tempo"
+CONFIG_DIALOG_PERIOD_DURATION_LABEL = "{} minuti"
+CONFIG_DIALOG_PERIOD_DURATION_HINT = \
+    "Specificare la durata di un tempo, in minuti:"
+CONFIG_DIALOG_PERIOD_DURATION_BUTTON_LABEL = "Cambia"
 CONFIG_DIALOG_OPTIONS_HEADING = "Opzioni"
 CONFIG_DIALOG_SERIAL_PORT_HEADING = "Collegamento al tabellone"
 CONFIG_DIALOG_SERIAL_PORT_LABEL = "Porta seriale:"
-COUNTDOWN_BUTTON_LABEL = "Esegui il conto alla rovescia"
-LEADING_ZERO_IN_MINUTE_BUTTON_LABEL = "Mostra lo zero iniziale nei minuti"
-HIRES_TIMER_ON_LAST_MINUTE_BUTTON_LABEL = \
+CONFIG_DIALOG_AGGREGATE_TIME_BUTTON_LABEL = "Mostra il tempo aggregato"
+CONFIG_DIALOG_LEADING_ZERO_IN_MINUTE_BUTTON_LABEL = \
+    "Mostra lo zero iniziale nei minuti"
+CONFIG_DIALOG_TENTH_SECOND_ON_LAST_MINUTE_BUTTON_LABEL = \
     "Mostra i decimi di secondo nell'ultimo minuto"
-END_OF_PERIOD_BLAST_BUTTON_LABEL = "Suona la sirena di fine tempo"
-PERIOD_DURATION_LABEL = "{} minuti"
-CHANGE_PERIOD_DURATION_TITLE = "Durata di un tempo"
-CHANGE_PERIOD_DURATION_HEADING = "Specificare la durata di un tempo, in minuti:"
-CHANGE_PERIOD_DURATION_BUTTON_LABEL = "Cambia"
+CONFIG_DIALOG_PERIOD_EXPIRED_BLAST_BUTTON_LABEL = \
+    "Suona la sirena di fine tempo"
+CONFIG_DIALOG_TIMEOUT_HEADING = "Timeout"
+CONFIG_DIALOG_SHOW_TIMEOUT_TIME_BUTTON_LABEL = \
+    "Mostra il minuto di timeout sul tabellone"
+CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
+    "Suona la sirena di inizio timeout"
+CONFIG_DIALOG_TIMEOUT_EXPIRING_BLAST_BUTTON_LABEL = \
+    "Suona la sirena di imminente fine del timeout"
+CONFIG_DIALOG_SHOW_TIMEOUT_CALLS_ON_SCOREBOARD_BUTTON_LABEL = \
+    "Mostra le chiamate dei timeout sul tabellone"
 
 
 class AppConfig(object):
@@ -294,24 +310,30 @@ class AppConfig(object):
     def __init__(self):
         self.time_view_config = chrono.TimeViewConfig()
         self.knock_out_game = False
-        self.end_of_period_blast = False
+        self.period_expired_blast = False
+        self.show_timeout_time = False
+        self.timeout_called_blast = False
+        self.timeout_expiring_blast = False
+        self.show_timeout_calls_on_scoreboard = False
         self.device_name = ''
+        self._match = None
+
+    def clone(self):
+        config = AppConfig()
+        config.time_view_config = copy.copy(self.time_view_config)
+        config.knock_out_game = self.knock_out_game
+        config.period_expired_blast = self.period_expired_blast
+        config.device_name = self.device_name
+        config._match = self._match
+        return config
 
     @property
-    def period_duration(self):
-        return self.time_view_config.period_duration
+    def aggregate_time(self):
+        return self.time_view_config.aggregate_time
 
-    @period_duration.setter
-    def period_duration(self, value):
-        self.time_view_config.period_duration = value
-
-    @property
-    def countdown(self):
-        return self.time_view_config.countdown
-
-    @countdown.setter
-    def countdown(self, value):
-        self.time_view_config.countdown = value
+    @aggregate_time.setter
+    def aggregate_time(self, value):
+        self.time_view_config.aggregate_time = value
 
     @property
     def leading_zero_in_minute(self):
@@ -322,44 +344,85 @@ class AppConfig(object):
         self.time_view_config.leading_zero_in_minute = value
 
     @property
-    def hires_timer_on_last_minute(self):
-        return self.time_view_config.hires_timer_on_last_minute
+    def tenth_second_on_last_minute(self):
+        return self.time_view_config.tenth_second_on_last_minute
 
-    @hires_timer_on_last_minute.setter
-    def hires_timer_on_last_minute(self, value):
-        self.time_view_config.hires_timer_on_last_minute = value
+    @tenth_second_on_last_minute.setter
+    def tenth_second_on_last_minute(self, value):
+        self.time_view_config.tenth_second_on_last_minute = value
 
     def load(self, path):
         try:
             config = SafeConfigParser()
             config.read(path)
-            self.period_duration = config.getint('TimeView', 'period_duration')
-            self.countdown = config.getboolean('TimeView', 'countdown')
+            self.period_duration = config.getint(
+                'TimeView', 'period_duration')
+            self.aggregate_time = config.getboolean(
+                'TimeView', 'aggregate_time')
             self.leading_zero_in_minute = config.getboolean(
                 'TimeView', 'leading_zero_in_minute')
-            self.hires_timer_on_last_minute = config.getboolean(
-                'TimeView', 'hires_timer_on_last_minute')
-            self.end_of_period_blast = config.getboolean(
-                'Consolle', 'end_of_period_blast')
-            self.device_name = config.get('Consolle', 'device_name')
+            self.tenth_second_on_last_minute = config.getboolean(
+                'TimeView', 'tenth_second_on_last_minute')
+            self.period_expired_blast = config.getboolean(
+                'Report', 'period_expired_blast')
+            self.show_timeout_time = config.getboolean(
+                'Report', 'show_timeout_time')
+            self.timeout_called_blast = config.getboolean(
+                'Report', 'timeout_called_blast')
+            self.timeout_expiring_blast = config.getboolean(
+                'Report', 'timeout_expiring_blast')
+            self.show_timeout_calls_on_scoreboard = config.getboolean(
+                'Report', 'show_timeout_calls_on_scoreboard')
+            self.device_name = config.get(
+                'Report', 'device_name')
         except:
             pass
 
     def save(self, path):
         config = SafeConfigParser()
-        config.add_section('Consolle')
-        config.set('Consolle', 'end_of_period_blast',
-            str(self.end_of_period_blast))
-        config.set('Consolle', 'device_name', self.device_name)
+        config.add_section('Report')
+        config.set('Report', 'period_expired_blast',
+            str(self.period_expired_blast))
+        config.set('Report', 'show_timeout_time',
+            str(self.show_timeout_time))
+        config.set('Report', 'timeout_called_blast',
+            str(self.timeout_called_blast))
+        config.set('Report', 'timeout_expiring_blast',
+            str(self.timeout_expiring_blast))
+        config.set('Report', 'show_timeout_calls_on_scoreboard',
+            str(self.show_timeout_calls_on_scoreboard))
+        config.set('Report', 'device_name', self.device_name)
         config.add_section('TimeView')
         config.set('TimeView', 'period_duration', str(self.period_duration))
-        config.set('TimeView', 'countdown', str(self.countdown))
+        config.set('TimeView', 'aggregate_time', str(self.aggregate_time))
         config.set('TimeView', 'leading_zero_in_minute',
             str(self.leading_zero_in_minute))
-        config.set('TimeView', 'hires_timer_on_last_minute',
-            str(self.hires_timer_on_last_minute))
+        config.set('TimeView', 'tenth_second_on_last_minute',
+            str(self.tenth_second_on_last_minute))
         with open(path, 'w') as file:
             config.write(file)
+
+    def match(self, match):
+        self._match = match
+
+    def to_aggregate_time(self, phase, minute, second, tenth):
+        return minute + self._elapsed(phase), second, tenth
+
+    def to_period_time(self, phase, minute, second, tenth):
+        return minute - self._elapsed(phase), second, tenth
+
+    def _elapsed(self, current_phase):
+        self._last_elapsed = []
+        if not self.aggregate_time:
+            return 0
+        if not self._match:
+            return 0
+        else:
+            if not current_phase:
+                current_phase = self._match.current_phase()
+            phases = list(itertools.takewhile(
+                lambda p: p != current_phase, self._match.phases()))
+            return sum(p.duration for p in phases if p.is_live and p.is_expired)
 
 
 class ConfigDialog(widget.BaseDialog):
@@ -370,15 +433,24 @@ class ConfigDialog(widget.BaseDialog):
         self._game_type = tk.IntVar()
         self._game_type.set(1 if self._config.knock_out_game else 0)
         self._period_duration = self._config.period_duration
-        self._countdown = tk.BooleanVar()
-        self._countdown.set(self._config.countdown)
+        self._aggregate_time = tk.BooleanVar()
+        self._aggregate_time.set(self._config.aggregate_time)
         self._leading_zero_in_minute = tk.BooleanVar()
         self._leading_zero_in_minute.set(self._config.leading_zero_in_minute)
-        self._hires_timer_on_last_minute = tk.BooleanVar()
-        self._hires_timer_on_last_minute.set(
-            self._config.hires_timer_on_last_minute)
-        self._end_of_period_blast = tk.BooleanVar()
-        self._end_of_period_blast.set(self._config.end_of_period_blast)
+        self._tenth_second_on_last_minute = tk.BooleanVar()
+        self._tenth_second_on_last_minute.set(
+            self._config.tenth_second_on_last_minute)
+        self._period_expired_blast = tk.BooleanVar()
+        self._period_expired_blast.set(self._config.period_expired_blast)
+        self._show_timeout_time = tk.BooleanVar()
+        self._show_timeout_time.set(self._config.show_timeout_time)
+        self._timeout_called_blast = tk.BooleanVar()
+        self._timeout_called_blast.set(self._config.timeout_called_blast)
+        self._timeout_expiring_blast = tk.BooleanVar()
+        self._timeout_expiring_blast.set(self._config.timeout_expiring_blast)
+        self._show_timeout_calls_on_scoreboard = tk.BooleanVar()
+        self._show_timeout_calls_on_scoreboard.set(
+            self._config.show_timeout_calls_on_scoreboard)
         self._serial_port = tk.StringVar()
         self._serial_port.set(self._config.device_name)
         widget.BaseDialog.__init__(self, master, CONFIG_DIALOG_TITLE)
@@ -412,7 +484,7 @@ class ConfigDialog(widget.BaseDialog):
         ttk.Button(
             period_duration,
             command=self._on_change_period_duration,
-            text=CHANGE_PERIOD_DURATION_BUTTON_LABEL).grid(
+            text=CONFIG_DIALOG_PERIOD_DURATION_BUTTON_LABEL).grid(
                 row=0, column=1, stick=tk.E, padx=5, pady=5)
         period_duration.grid_columnconfigure(1, weight=1)
         options = tk.LabelFrame(master, text=CONFIG_DIALOG_OPTIONS_HEADING)
@@ -420,38 +492,61 @@ class ConfigDialog(widget.BaseDialog):
             row=3, column=0, columnspan=3, stick=tk.EW, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
-            text=COUNTDOWN_BUTTON_LABEL,
-            variable=self._countdown).grid(
+            text=CONFIG_DIALOG_AGGREGATE_TIME_BUTTON_LABEL,
+            variable=self._aggregate_time).grid(
                 row=0, column=0, stick=tk.W, padx=5, pady=(10, 0))
         tk.Checkbutton(
             options,
-            text=LEADING_ZERO_IN_MINUTE_BUTTON_LABEL,
+            text=CONFIG_DIALOG_LEADING_ZERO_IN_MINUTE_BUTTON_LABEL,
             variable=self._leading_zero_in_minute).grid(
                 row=1, column=0, stick=tk.W, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
-            text=HIRES_TIMER_ON_LAST_MINUTE_BUTTON_LABEL,
-            variable=self._hires_timer_on_last_minute).grid(
+            text=CONFIG_DIALOG_TENTH_SECOND_ON_LAST_MINUTE_BUTTON_LABEL,
+            variable=self._tenth_second_on_last_minute).grid(
                 row=2, column=0, stick=tk.W, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
-            text=END_OF_PERIOD_BLAST_BUTTON_LABEL,
-            variable=self._end_of_period_blast).grid(
+            text=CONFIG_DIALOG_PERIOD_EXPIRED_BLAST_BUTTON_LABEL,
+            variable=self._period_expired_blast).grid(
                 row=3, column=0, stick=tk.W, padx=5, pady=(5, 10))
+        timeout = tk.LabelFrame(master, text=CONFIG_DIALOG_TIMEOUT_HEADING)
+        timeout.grid(
+            row=4, column=0, columnspan=3, stick=tk.EW, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            timeout,
+            text=CONFIG_DIALOG_SHOW_TIMEOUT_TIME_BUTTON_LABEL,
+            variable=self._show_timeout_time).grid(
+                row=0, column=0, stick=tk.W, padx=5, pady=(10, 0))
+        tk.Checkbutton(
+            timeout,
+            text=CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL,
+            variable=self._timeout_called_blast).grid(
+                row=1, column=0, stick=tk.W, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            timeout,
+            text=CONFIG_DIALOG_TIMEOUT_EXPIRING_BLAST_BUTTON_LABEL,
+            variable=self._timeout_expiring_blast).grid(
+                row=2, column=0, stick=tk.W, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            timeout,
+            text=CONFIG_DIALOG_SHOW_TIMEOUT_CALLS_ON_SCOREBOARD_BUTTON_LABEL,
+            variable=self._show_timeout_calls_on_scoreboard).grid(
+                row=7, column=0, stick=tk.W, padx=5, pady=(5, 10))
         serial_port = tk.LabelFrame(
                 master, text=CONFIG_DIALOG_SERIAL_PORT_HEADING)
         serial_port.grid(
-            row=4, column=0, columnspan=3, stick=tk.EW, padx=5, pady=(5, 0))
+            row=5, column=0, columnspan=3, stick=tk.EW, padx=5, pady=(5, 0))
         tk.Label(serial_port, text=CONFIG_DIALOG_SERIAL_PORT_LABEL).grid(
             row=0, column=0, stick=tk.W, padx=(5, 0), pady=5)
         ttk.Entry(serial_port, textvariable=self._serial_port).grid(
             row=0, column=1, stick=tk.W, padx=(5, 0), pady=5)
         ttk.Separator(master, orient='horizontal').grid(
-            row=5, column=0, columnspan=3, stick=tk.EW, pady=(20, 5))
+            row=6, column=0, columnspan=3, stick=tk.EW, pady=(20, 5))
         ttk.Button(master, text=OK_BUTTON_LABEL, command=self.ok).grid(
-            row=6, column=1, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=7, column=1, stick=tk.E, padx=(0, 5), pady=(20, 5))
         ttk.Button(master, text=CANCEL_BUTTON_LABEL, command=self.cancel).grid(
-            row=6, column=2, stick=tk.E, padx=(0, 5), pady=(20, 5))
+            row=7, column=2, stick=tk.E, padx=(0, 5), pady=(20, 5))
         master.grid_columnconfigure(0, weight=1)
         self.bind('<Escape>', self.cancel)
         self.bind('<Return>', self.ok)
@@ -463,20 +558,26 @@ class ConfigDialog(widget.BaseDialog):
 
     def ok(self, event=None):
         self._config.period_duration = self._period_duration
-        self._config.countdown = self._countdown.get()
+        self._config.aggregate_time = self._aggregate_time.get()
         self._config.leading_zero_in_minute = self._leading_zero_in_minute.get()
-        self._config.hires_timer_on_last_minute = \
-            self._hires_timer_on_last_minute.get()
+        self._config.tenth_second_on_last_minute = \
+            self._tenth_second_on_last_minute.get()
         self._config.knock_out_game = self._game_type.get() == 1
-        self._config.end_of_period_blast = self._end_of_period_blast.get()
+        self._config.period_expired_blast = self._period_expired_blast.get()
+        self._config.show_timeout_time = self._show_timeout_time.get()
+        self._config.timeout_called_blast = self._timeout_called_blast.get()
+        self._config.timeout_expiring_blast = \
+            self._timeout_expiring_blast.get()
+        self._config.show_timeout_calls_on_scoreboard = \
+            self._show_timeout_calls_on_scoreboard.get()
         self._config.device_name = self._serial_port.get()
         return widget.BaseDialog.ok(self, event)
 
     def _on_change_period_duration(self, event=None):
         dialog = InputNumberDialog(
             self,
-            CHANGE_PERIOD_DURATION_TITLE,
-            CHANGE_PERIOD_DURATION_HEADING,
+            CONFIG_DIALOG_PERIOD_DURATION_TITLE,
+            CONFIG_DIALOG_PERIOD_DURATION_HINT,
             self._period_duration)
         period_duration = dialog.value
         if period_duration:
@@ -485,7 +586,7 @@ class ConfigDialog(widget.BaseDialog):
 
     def _update(self):
         self._period_duration_label['text'] = \
-            PERIOD_DURATION_LABEL.format(self._period_duration)
+            CONFIG_DIALOG_PERIOD_DURATION_LABEL.format(self._period_duration)
 
 
 def catch_exceptions(method):
@@ -893,7 +994,7 @@ class SuspensionsWidget(widget.StyledFrame):
         self._prev_suspensions = []
         self._suspensions.delete(0, tk.END)
 
-    def refresh(self, suspensions, config):
+    def update(self, suspensions, config):
         team_suspensions = [
             s for s in suspensions if s.player.team_id == self._team_id]
         if self._prev_suspensions == team_suspensions:
@@ -984,12 +1085,16 @@ class Application(widget.StyledWidget):
         self._root.title(self._title)
         self._icon = tk.PhotoImage(file = 'report.gif')
         self._root.tk.call('wm', 'iconphoto', self._root._w, self._icon)
-        # timer
-        self._timer = chrono.Timer()
-        self._stop_watch = chrono.StopWatch(self._timer, self)
-        self._time_view = chrono.TimeView()
-        self._stop_timer_during_penalties = tk.BooleanVar()
-        self._stop_timer_during_penalties.set(False)
+        # timers
+        self._period_timer = chrono.Timer()
+        self._timeout_timer_config = chrono.TimeViewConfig()
+        self._timeout_timer_config.tenth_second_on_last_minute = False
+        self._timeout_timer = chrono.Timer()
+        self._timeout_timer.configure(self._timeout_timer_config)
+        self._timeout_timer.set_period_duration(TIMEOUT_DURATION)
+        # flags
+        self._stop_time_during_penalties = tk.BooleanVar()
+        self._stop_time_during_penalties.set(False)
         self._in_timeout = False
         # enable styling
         style = ttk.Style()
@@ -1006,15 +1111,17 @@ class Application(widget.StyledWidget):
         self._config.load(self._config_file_path)
         self._change_config(True) # initial config
         if self._config.knock_out_game:
-            course = game.KnockOutGameCourse(self._config.period_duration, 5)
+            course = game.KnockOutGameCourse(
+                self._config.period_duration, EXTRA_PERIOD_DURATION)
         else:
             course = game.ChampionshipGameCourse(self._config.period_duration)
-        self._match = game.Game(course, self._timer, GameObserver())
+        self._match = game.Game(course, self._period_timer, GameObserver())
+        self._config.match(self._match)
         # prepare the main window
         widget.StyledWidget.__init__(self, self._root)
         self._root.deiconify()
         self._set_initial_size()
-        self._update_timer()
+        self._update()
         self._update_game_phase()
         self._update_progress_button_label()
         if self._match.is_live():
@@ -1041,13 +1148,13 @@ class Application(widget.StyledWidget):
             self._root, text=DISMISS_BUTTON_LABEL)
         self._penalty_button = ttk.Button(
             self._root, text=PENALTY_BUTTON_LABEL)
-        # timer
+        # time
         self._timer_widget = chrono.TimerWidget(
-            self._root, self._timer, self._time_view, TIMER_FONT)
-        self._stop_timer_during_penalties_button = ttk.Checkbutton(
+            self._root, self._period_timer, TIME_FONT)
+        self._stop_time_during_penalties_button = ttk.Checkbutton(
             self._root,
-            text=STOP_TIMER_DURING_PENALTIES_CHECKBOX_LABEL,
-            variable=self._stop_timer_during_penalties)
+            text=STOP_TIME_DURING_PENALTIES_CHECKBOX_LABEL,
+            variable=self._stop_time_during_penalties)
         # game phase
         self._game_phase_widget = GamePhaseWidget(self._root, self._match)
         # game events
@@ -1082,9 +1189,9 @@ class Application(widget.StyledWidget):
             row=10, column=1, stick=tk.EW, padx=5, pady=(5, 0))
         self._penalty_button.grid(
             row=11, column=1, stick=tk.EW, padx=5, pady=(5, 0))
-        # timer
+        # time
         self._timer_widget.grid(row=0, column=2)
-        self._stop_timer_during_penalties_button.grid(
+        self._stop_time_during_penalties_button.grid(
             row=3, column=2, pady=(15, 5))
         # game phase
         self._game_phase_widget.grid(row=0, column=3, rowspan=4, columnspan=4)
@@ -1170,17 +1277,23 @@ class Application(widget.StyledWidget):
         self._suspension_reports_heading['background'] = self._BACKGROUND_COLOR
 
     def _create_event_list_configuration(self):
-        return chrono.TimeViewConfig(
-            period_duration=0, # will use event's pahse duration
-            countdown=self._config.countdown,
-            leading_zero_in_minute=self._config.leading_zero_in_minute,
-            hires_timer_on_last_minute=False) # force min/sec format
+        event_list_config = self._config.clone()
+        # force min/sec format
+        event_list_config.tenth_second_on_last_minute = False
+        return event_list_config
 
     def _change_config(self, is_initial_config):
         dialog = ConfigDialog(self._root, self._config, is_initial_config)
         self._config.save(self._config_file_path)
-        self._stop_watch.stop_at_minute(self._config.period_duration)
-        self._time_view.configure(self._config)
+        # timer configuration
+        if is_initial_config:
+            self._period_timer.set_period_duration(self._config.period_duration)
+        else:
+            if self._config.show_timeout_time and self._in_timeout:
+                self._timer_widget.change_timer(self._timeout_timer)
+            else:
+                self._timer_widget.change_timer(self._period_timer)
+        self._period_timer.configure(self._config)
         # scoreboard configuration
         device_name = self._config.device_name
         if not device_name:
@@ -1196,7 +1309,7 @@ class Application(widget.StyledWidget):
                     tkMessageBox.showerror(
                         APP_NAME,
                         SCOREBOARD_CONNECTION_ERROR.format(device_name, error))
-        # reload reports
+        # report reload
         if not is_initial_config:
             self._event_list.reload(
                 [event for event in self._match],
@@ -1220,28 +1333,44 @@ class Application(widget.StyledWidget):
                 break
             report_font_size -= 1
 
-    def _update_timer(self):
-        self._stop_watch.tick()
-        self._timer_widget.refresh()
+    def _update(self):
+        self._root.after(20, self._update)
+        self._timer_widget.update()
         self._update_suspension_panels()
-        self._root.after(20, self._update_timer)
+        if self._timeout_timer.is_triggered():
+            self._timeout_expiring()
+        elif self._timeout_timer.is_expired():
+            self._timeout_expired()
         if self._scoreboard:
-            _, _, cent = self._timer.peek()
+            _, _, tenth = self._period_timer.now()
             home_score, guest_score = self._match.score()
+            if self._config.show_timeout_calls_on_scoreboard:
+                team_a_timeouts = self._match.called_timeouts(game.TEAM_A_ID)
+                team_b_timeouts = self._match.called_timeouts(game.TEAM_B_ID)
+                home_first_timeout = (team_a_timeouts & 0x01) > 0
+                home_second_timeout = (team_a_timeouts & 0x02) > 0
+                guest_first_timeout = (team_b_timeouts & 0x01) > 0
+                guest_second_timeout = (team_b_timeouts & 0x02) > 0
+            else:
+                home_first_timeout = False
+                home_second_timeout = False
+                guest_first_timeout = False
+                guest_second_timeout = False
+
             self._scoreboard.update(
                 scoreboard.Data(
-                    timer=self._time_view.peek_figures(self._timer),
-                    dot=cent < 50,
+                    timestamp=self._period_timer.figures(),
+                    dot=tenth < 5,
                     leading_zero_in_minute = \
                         self._config.leading_zero_in_minute,
                     home_seventh_foul=False,
-                    home_first_timeout=False,
-                    home_second_timeout=False,
+                    home_first_timeout=home_first_timeout,
+                    home_second_timeout=home_second_timeout,
                     home_set=0,
                     home_score=home_score,
                     guest_seventh_foul=False,
-                    guest_first_timeout=False,
-                    guest_second_timeout=False,
+                    guest_first_timeout=guest_first_timeout,
+                    guest_second_timeout=guest_second_timeout,
                     guest_set=0,
                     guest_score=guest_score,
                     siren=self._siren_on))
@@ -1272,8 +1401,8 @@ class Application(widget.StyledWidget):
         now = self._match.timestamp()
         active_suspensions = [
             s for s in self._match.suspensions if not s.is_expired(now)]
-        self._team_a_suspensions.refresh(active_suspensions, self._config)
-        self._team_b_suspensions.refresh(active_suspensions, self._config)
+        self._team_a_suspensions.update(active_suspensions, self._config)
+        self._team_b_suspensions.update(active_suspensions, self._config)
 
     def _enable_buttons(self):
         self._set_buttons_state(tk.NORMAL)
@@ -1303,23 +1432,34 @@ class Application(widget.StyledWidget):
         if self._is_disabled(self._timeout_button):
             return
         if self._in_timeout:
-            button_state = tk.NORMAL
-            self._timer.start()
+            # timeout ended
+            self._timeout_timer.stop()
+            self._timer_widget.change_timer(self._period_timer)
+            self._period_timer.start()
             self._game_phase_widget.restore()
             self._timeout_button['text'] = TIMEOUT_CALL_BUTTON_LABEL
+            button_state = tk.NORMAL
         else:
-            timestamp = self._match.timestamp()
+            # timeout just called
             team = self._ask_for_team(TIMEOUT_CALL_BUTTON_LABEL)
             if not team:
                 return
+            timestamp = self._match.timestamp()
             event = self._match.timeout(team, timestamp)
             if not event:
                 return
             self._log_event(event)
-            self._timer.stop()
-            button_state = tk.DISABLED
+            self._period_timer.stop()
+            if self._config.timeout_called_blast:
+                self._activate_siren()
+            self._timeout_timer.reset()
+            self._timeout_timer.arm_trigger(0, 50)
+            if self._config.show_timeout_time:
+                self._timer_widget.change_timer(self._timeout_timer)
+            self._timeout_timer.start()
             self._game_phase_widget.flash(TIMEOUT_LABEL)
             self._timeout_button['text'] = TIMEOUT_END_BUTTON_LABEL
+            button_state = tk.DISABLED
         self._in_timeout = not self._in_timeout
         self._set_widget_state(self._goal_button, button_state)
         self._set_widget_state(self._warning_button, button_state)
@@ -1360,17 +1500,17 @@ class Application(widget.StyledWidget):
         if self._is_disabled(self._penalty_button):
             return
         timestamp = self._match.timestamp()
-        timer_was_running = self._timer.is_running()
-        if self._stop_timer_during_penalties.get():
-            self._timer.stop()
+        time_was_running = self._period_timer.is_running()
+        if self._stop_time_during_penalties.get():
+            self._period_timer.stop()
         player = self._ask_for_player(PENALTY_BUTTON_LABEL)
         if player:
             if tkMessageBox.askyesno(APP_NAME, CONFIRM_PENALTY_SCORED):
                 self._log_event(self._match.penalty_scored(player, timestamp))
             else:
                 self._log_event(self._match.penalty_missed(player, timestamp))
-        if self._stop_timer_during_penalties.get() and timer_was_running:
-            self._timer.start()
+        if self._stop_time_during_penalties.get() and time_was_running:
+            self._period_timer.start()
 
     @catch_exceptions
     def _on_progress(self, event=None):
@@ -1379,15 +1519,17 @@ class Application(widget.StyledWidget):
         timestamp = self._match.timestamp()
         next_phase = self._match.next_phase()
         if next_phase.is_live:
-            if self._timer.is_running():
-                self._timer.stop()
-            self._timer.reset()
-            self._stop_watch.stop_at_minute(next_phase.duration)
+            if self._period_timer.is_running():
+                self._period_timer.stop()
+            self._period_timer.reset()
+            self._period_timer.set_period_duration(next_phase.duration)
             timestamp = self._match.timestamp()
-            self._timer.start()
+            self._period_timer.start()
             self._enable_buttons()
         else:
             self._disable_buttons()
+            if self._config.aggregate_time:
+                self._period_timer.reset()
         self._log_event(self._match.phase_expired(timestamp))
         self._update_game_phase()
         self._update_progress_button_label()
@@ -1399,10 +1541,10 @@ class Application(widget.StyledWidget):
         for event in self._match:
             self._log_event(event)
         if self._match.current_phase().is_live:
-            self._timer.start()
+            self._period_timer.start()
             self._enable_buttons()
         else:
-            self._timer.stop()
+            self._period_timer.stop()
             self._disable_buttons()
         self._update_game_phase()
         self._update_progress_button_label()
@@ -1432,7 +1574,8 @@ class Application(widget.StyledWidget):
 
     def _terminate(self):
         if tkMessageBox.askyesno(APP_NAME, CONFIRM_QUIT):
-            self._timer.stop()
+            self._period_timer.stop()
+            self._timeout_timer.stop()
             self._root.destroy()
 
     def _log_event(self, event):
@@ -1458,11 +1601,20 @@ class Application(widget.StyledWidget):
             return ''
         return '{}{}'.format(team, player)
 
-    # StopWatch callback
-    def on_stop(self):
-        if self._config.end_of_period_blast:
-            self._siren_on = True
-            self._root.after(1000, self._on_siren_off)
+    def _period_expired(self, minute):
+        if self._config.period_expired_blast:
+            self._activate_siren()
+
+    def _timeout_expiring(self):
+        if self._config.timeout_expiring_blast:
+            self._activate_siren()
+
+    def _timeout_expired(self):
+        self._timer_widget.change_timer(self._period_timer)
+
+    def _activate_siren(self):
+        self._root.after(0, self._on_siren_on)
+        self._root.after(1000, self._on_siren_off)
 
 
 root_ = tk.Tk()
