@@ -43,7 +43,7 @@ the firmware to restart everytime the serial port is opened (see for example
 
 Other sources confirm this is the case, see for example
 "[DTR and RTS control lines toggle unintentionally when opening port](https://github.com/pyserial/pyserial/issues/124)".
-Several platform-dependent solutions has been proposed, see for example
+Several platform-dependent solutions have been proposed, see for example
 "[Disable DTR on ttyUSB0](https://raspberrypi.stackexchange.com/questions/9695/disable-dtr-on-ttyusb0/31298#31298)"
 for Linux-like environments,
 "[Disable DTR in pyserial from code](https://stackoverflow.com/questions/15460865/disable-dtr-in-pyserial-from-code)"

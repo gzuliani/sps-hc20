@@ -214,9 +214,10 @@ class Scoreboard(object):
     def __init__(self, device_name):
         self._device_name = device_name
         self._scrolling_text = ScrollingText()
-        self.nacks = 0
-        self.errors = 0
-        self.timeouts = 0
+        self.sent_packet_count = 0
+        self.bad_packet_count = 0
+        self.unexpected_error_count = 0
+        self.lost_packet_count = 0
         self._font = Font()
         self._blank = self._font.encode(' ')
         self._digits = [self._font.encode(i) for i in '0123456789']
@@ -243,10 +244,12 @@ class Scoreboard(object):
         self._scrolling_text.hide()
 
     def update(self, data):
+        packet_to_transmit = self._last_transmitted_packet[:]
+        # if data is changed, the tx buffer must be updated
         if not self._last_transmitted_data \
             or self._last_transmitted_data != data:
             minute, second = data.timestamp
-            buffer = self._last_transmitted_packet
+            buffer = packet_to_transmit
             # set digits
             buffer[ 1] = self._encode_digit(self._units(data.home_set))
             buffer[ 2] = self._encode_digit(
@@ -276,19 +279,22 @@ class Scoreboard(object):
                 | (0x40 if data.guest_first_timeout else 0x00) \
                 | (0x20 if data.guest_second_timeout else 0x00) \
                 | (0x10 if data.guest_seventh_foul else 0x00)
-        packet_to_transmit = self._last_transmitted_packet[:]
+        # any banner to show?
         self._scrolling_text.transform(packet_to_transmit)
-        #~ print ' '.join(['{:02x}'.format(x) for x in packet_to_transmit])
-        self._port.write(packet_to_transmit)
-        response = self._port.read()
-        if not response:
-            self.timeouts += 1
-        elif ord(response) == self._ACK:
-            self._last_transmitted_data = data
-        elif ord(response) == self._NAK:
-            self.nacks += 1
-        else:
-            self.errors += 1
+        if packet_to_transmit != self._last_transmitted_packet:
+            #~ print ' '.join(['{:02x}'.format(x) for x in packet_to_transmit])
+            self._port.write(packet_to_transmit)
+            response = self._port.read()
+            if not response:
+                self.lost_packet_count += 1
+            elif ord(response) == self._ACK:
+                self.sent_packet_count += 1
+                self._last_transmitted_data = data
+                self._last_transmitted_packet = packet_to_transmit
+            elif ord(response) == self._NAK:
+                self.bad_packet_count += 1
+            else:
+                self.unexpected_error_count += 1
 
     def _units(self, value):
         return value % 10

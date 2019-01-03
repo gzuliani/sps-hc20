@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# SPS HC20 - Consolle v. 0.3
+# SPS HC20 - Consolle v. 0.4
 
 Il programma _Consolle_ emula la consolle di controllo del tabellone IBLE SPS
 HC20.
@@ -58,6 +58,12 @@ I parametri della configurazione sono:
 
  * **Suona la sirena di imminente fine del timeout**: emette un suono di sirena
    della durata di un secondo a dieci secondi dal termine del timeout;
+
+ * **Mostra le statistiche di comunicazione**: visualizza alcune statistiche
+   riguardanti la comunicazione tra il programma e il circuito di interfaccia,
+   utili nella diagnostica dei problemi relativi al controllo del tabellone:
+
+   ![statistiche di comunicazione](./img/consolle_comm_stats.png)
 
  * **Nome del dispositivo**: identificativo della porta cui è collegato il
    circuito di controllo del tabellone. Su Windows è il nome di una porta

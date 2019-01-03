@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.3" # see setup.py
+APP_VERSION = "0.4" # see setup.py
 
 try:
     # python 3.x
@@ -31,6 +31,9 @@ import widget
 # constants
 TIMEOUT_DURATION = 1 # minutes
 
+# accelerators
+TIMEOUT_KEY = '<Key-t>'
+
 # font size
 TIME_FONT = ('', 72, 'bold')
 TEAM_TITLE_FONT_SIZE = 36
@@ -42,6 +45,8 @@ SCORE_TITLE_FONT_SIZE = 24
 SCORE_TITLE_FONT = ('', SCORE_TITLE_FONT_SIZE)
 SCORE_FONT_SIZE = 72
 SCORE_FONT = ('', SCORE_FONT_SIZE, 'bold')
+COMM_STATS_FONT_SIZE = 8
+COMM_STATS_FONT = ('', COMM_STATS_FONT_SIZE)
 
 # padding
 BUTTON_PADDING = 10
@@ -75,6 +80,8 @@ CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di inizio timeout"
 CONFIG_DIALOG_TIMEOUT_EXPIRED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di imminente fine timeout"
+CONFIG_DIALOG_SHOW_COMM_STATS_LABEL = \
+    "Mostra le statistiche di comunicazione"
 
 OK_BUTTON_LABEL = "OK"
 CANCEL_BUTTON_LABEL = "Annulla"
@@ -109,7 +116,10 @@ SCOREBOARD_CONNECTION_ERROR = \
     "a quella cui è collegato in questo momento.\n\n" \
     "Se si indica la presa sbagliata il programma funzionerà normalmente, " \
     "ma non invierà i comandi di controllo del tabellone."
-
+COMM_STATS_SENT_PACKETS = "Pacchetti spediti: {:d}"
+COMM_STATS_BAD_PACKETS = "Pacchetti rifiutati: {:d}"
+COMM_STATS_LOST_PACKETS = "Pacchetti persi: {:d}"
+COMM_STATS_UNEXPECTED_ERRORS = "Errori generici: {:d}"
 
 class AppConfig(object):
 
@@ -119,6 +129,7 @@ class AppConfig(object):
         self.period_expired_blast = False
         self.timeout_called_blast = False
         self.timeout_expired_blast = False
+        self.show_comm_stats = False # for debug purposes only, won't be saved
         self.device_name = ''
 
     @property
@@ -201,6 +212,8 @@ class ConfigDialog(widget.BaseDialog):
         self._timeout_called_blast.set(self._config.timeout_called_blast)
         self._timeout_expired_blast = tk.BooleanVar()
         self._timeout_expired_blast.set(self._config.timeout_expired_blast)
+        self._show_comm_stats = tk.BooleanVar()
+        self._show_comm_stats.set(self._config.show_comm_stats)
         self._serial_port = tk.StringVar()
         self._serial_port.set(self._config.device_name)
         widget.BaseDialog.__init__(self, master, CONFIG_DIALOG_TITLE)
@@ -248,7 +261,12 @@ class ConfigDialog(widget.BaseDialog):
             options,
             text=CONFIG_DIALOG_TIMEOUT_EXPIRED_BLAST_BUTTON_LABEL,
             variable=self._timeout_expired_blast).grid(
-                row=5, column=0, stick=tk.W, padx=5, pady=(5, 10))
+                row=5, column=0, stick=tk.W, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            options,
+            text=CONFIG_DIALOG_SHOW_COMM_STATS_LABEL,
+            variable=self._show_comm_stats).grid(
+                row=6, column=0, stick=tk.W, padx=5, pady=(5, 10))
         serial_port = tk.LabelFrame(
                 master, text=CONFIG_DIALOG_SERIAL_PORT_HEADING)
         serial_port.grid(
@@ -274,6 +292,7 @@ class ConfigDialog(widget.BaseDialog):
         self._config.period_expired_blast = self._period_expired_blast.get()
         self._config.timeout_called_blast = self._timeout_called_blast.get()
         self._config.timeout_expired_blast = self._timeout_expired_blast.get()
+        self._config.show_comm_stats = self._show_comm_stats.get()
         self._config.device_name = self._serial_port.get()
         return widget.BaseDialog.ok(self, event)
 
@@ -420,6 +439,53 @@ class TeamWidget(widget.StyledFrame):
         return self._second_timeout.get()
 
 
+class CommStatWidget(object):
+
+    def __init__(self, root, template):
+        self._template = template
+        self._label = ttk.Label(
+            root,
+            font=COMM_STATS_FONT,
+            foreground=Palette.BASE0,
+            text=template)
+
+    def grid(self, *args, **kwargs):
+        self._label.grid(*args, **kwargs)
+
+    def grid_forget(self):
+        self._label.grid_forget()
+
+    def update(self, count):
+        self._label['text'] = self._template.format(count)
+
+
+class CommStatsWidget(widget.StyledFrame):
+
+    def __init__(self, root):
+        widget.StyledFrame.__init__(self, root)
+
+    def _create_widgets(self):
+        self._comm_stats = [
+            CommStatWidget(
+                self._frame, template) for template in [
+                    COMM_STATS_SENT_PACKETS,
+                    COMM_STATS_BAD_PACKETS,
+                    COMM_STATS_LOST_PACKETS,
+                    COMM_STATS_UNEXPECTED_ERRORS,
+                ]
+        ]
+
+    def _define_layout(self):
+        for i, comm_stat in enumerate(self._comm_stats):
+            comm_stat.grid(row=i, column=0, stick=tk.W)
+
+    def update(self, scoreboard):
+            self._comm_stats[0].update(scoreboard.sent_packet_count)
+            self._comm_stats[1].update(scoreboard.bad_packet_count)
+            self._comm_stats[2].update(scoreboard.lost_packet_count)
+            self._comm_stats[3].update(scoreboard.unexpected_error_count)
+
+
 class Application(widget.StyledWidget):
 
     def __init__(self, root, title):
@@ -453,17 +519,18 @@ class Application(widget.StyledWidget):
         # scoreboard
         self._siren_on = False
         self._scoreboard = None
-        # initial configuration
+        # load the last used configuration
         self._config = AppConfig()
         self._config_file_path = os.path.expanduser(
             '~/.sps-hc20_consolle.cfg')
         self._config.load(self._config_file_path)
-        self._change_config()
         # prepare the main window
         widget.StyledWidget.__init__(self, self._root)
         self._root.deiconify()
         self._set_initial_size()
         widget.center_window(self._root)
+        # show current configuration to the user
+        self._change_config()
         self._update()
 
     def _create_widgets(self):
@@ -473,6 +540,8 @@ class Application(widget.StyledWidget):
         # scores
         self._home_team_widget = TeamWidget(self._root, HOME_TEAM_TITLE)
         self._guest_team_widget = TeamWidget(self._root, GUEST_TEAM_TITLE, True)
+        # communication stats
+        self._comm_stats_widget = CommStatsWidget(self._root)
         # main window buttons
         self._siren_button = ttk.Button(self._root, text=SIREN_BUTTON_LABEL)
         self._timeout_button = ttk.Button(
@@ -517,8 +586,17 @@ class Application(widget.StyledWidget):
         self._bulletin_button['command'] = self._on_bulletin
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
+        # keyboard shortcuts
+        self._root.bind(TIMEOUT_KEY, self._on_timeout)
         # main window events
         self._root.protocol('WM_DELETE_WINDOW', self._on_delete_window)
+
+    def _show_comm_stats(self):
+        self._comm_stats_widget.grid(
+            row=0, column=0, padx=5, pady=5, stick=tk.NW)
+
+    def _hide_comm_stats(self):
+        self._comm_stats_widget.grid_forget()
 
     def _on_siren_on(self, event=None):
         self._siren_on = True
@@ -527,6 +605,8 @@ class Application(widget.StyledWidget):
         self._siren_on = False
 
     def _on_timeout(self, event=None):
+        if not self._timer.is_running():
+            return
         self._timer.stop()
         minute, second, _ = self._timer_widget.now()
         if self._config.timeout_called_blast:
@@ -599,6 +679,7 @@ class Application(widget.StyledWidget):
                     guest_set=self._guest_team_widget.set,
                     guest_score=self._guest_team_widget.score,
                     siren=self._siren_on))
+            self._comm_stats_widget.update(self._scoreboard)
 
     def _change_config(self):
         dialog = ConfigDialog(self._root, self._config)
@@ -622,6 +703,10 @@ class Application(widget.StyledWidget):
                     tkMessageBox.showerror(
                         APP_NAME,
                         SCOREBOARD_CONNECTION_ERROR.format(device_name, error))
+        if self._config.show_comm_stats:
+            self._show_comm_stats()
+        else:
+            self._hide_comm_stats()
 
     def _terminate(self):
         self._timer.stop()
