@@ -448,6 +448,7 @@ class CommStatWidget(object):
             font=COMM_STATS_FONT,
             foreground=Palette.BASE0,
             text=template)
+        self.update(0)
 
     def grid(self, *args, **kwargs):
         self._label.grid(*args, **kwargs)
@@ -480,10 +481,10 @@ class CommStatsWidget(widget.StyledFrame):
             comm_stat.grid(row=i, column=0, stick=tk.W)
 
     def update(self, scoreboard):
-            self._comm_stats[0].update(scoreboard.sent_packet_count)
-            self._comm_stats[1].update(scoreboard.bad_packet_count)
-            self._comm_stats[2].update(scoreboard.lost_packet_count)
-            self._comm_stats[3].update(scoreboard.unexpected_error_count)
+        self._comm_stats[0].update(scoreboard.sent_packet_count)
+        self._comm_stats[1].update(scoreboard.bad_packet_count)
+        self._comm_stats[2].update(scoreboard.lost_packet_count)
+        self._comm_stats[3].update(scoreboard.unexpected_error_count)
 
 
 class Application(widget.StyledWidget):
