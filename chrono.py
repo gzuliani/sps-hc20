@@ -403,7 +403,7 @@ class TimerWidget(StyledFrame):
         result = self._INPUT_FORMAT.match(new_time)
         if not result:
             tkMessageBox.showerror(
-                APP_NAME,
+                SET_TIME_VALUE,
                 INVALID_TIME_VALUE.format(new_time))
             return
         minute = int(result.group(1))

@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# SPS HC20 - Consolle v. 0.4
+# SPS HC20 - Consolle v. 0.5
 
 Il programma _Consolle_ emula la consolle di controllo del tabellone IBLE SPS
 HC20.

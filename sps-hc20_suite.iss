@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "SPS HC20 - Suite"
-#define MyAppVersion "0.4"
+#define MyAppVersion "0.5"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.

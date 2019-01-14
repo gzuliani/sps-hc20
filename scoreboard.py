@@ -242,6 +242,10 @@ class Scoreboard(object):
 
     def hide_scrolling_text(self):
         self._scrolling_text.hide()
+        # force a display update
+        data = self._last_transmitted_data
+        self._last_transmitted_data = None
+        self.update(data)
 
     def update(self, data):
         packet_to_transmit = self._last_transmitted_packet[:]

@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.4" # see setup.py
+APP_VERSION = "0.5" # see setup.py
 
 try:
     # python 3.x
@@ -30,9 +30,6 @@ import widget
 
 # constants
 TIMEOUT_DURATION = 1 # minutes
-
-# accelerators
-TIMEOUT_KEY = '<Key-t>'
 
 # font size
 TIME_FONT = ('', 72, 'bold')
@@ -120,6 +117,7 @@ COMM_STATS_SENT_PACKETS = "Pacchetti spediti: {:d}"
 COMM_STATS_BAD_PACKETS = "Pacchetti rifiutati: {:d}"
 COMM_STATS_LOST_PACKETS = "Pacchetti persi: {:d}"
 COMM_STATS_UNEXPECTED_ERRORS = "Errori generici: {:d}"
+
 
 class AppConfig(object):
 
@@ -588,7 +586,8 @@ class Application(widget.StyledWidget):
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
         # keyboard shortcuts
-        self._root.bind(TIMEOUT_KEY, self._on_timeout)
+        self._root.bind('<Key-t>', self._on_timeout)
+        self._root.bind('<Key-T>', self._on_timeout)
         # main window events
         self._root.protocol('WM_DELETE_WINDOW', self._on_delete_window)
 
