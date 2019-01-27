@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.5" # see setup.py
+APP_VERSION = "0.6" # see setup.py
 
 try:
     # python 3.x
@@ -77,6 +77,8 @@ CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di inizio timeout"
 CONFIG_DIALOG_TIMEOUT_EXPIRED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di imminente fine timeout"
+CONFIG_DIALOG_ENABLE_KEYBOARD_SHORTCUTS_LABEL = \
+    "Abilita le scorciatoie da tastiera"
 CONFIG_DIALOG_SHOW_COMM_STATS_LABEL = \
     "Mostra le statistiche di comunicazione"
 
@@ -118,6 +120,21 @@ COMM_STATS_BAD_PACKETS = "Pacchetti rifiutati: {:d}"
 COMM_STATS_LOST_PACKETS = "Pacchetti persi: {:d}"
 COMM_STATS_UNEXPECTED_ERRORS = "Errori generici: {:d}"
 
+# keyboard shortcuts
+TIMER_STARTSTOP_KEY = 'r'
+TIMER_SET_KEY = 't'
+SIREN_KEY = 'z'
+TIMEOUT_KEY = 'g'
+TIMER_RESET_KEY = 'y'
+HOME_SET_INC_KEY = 'q'
+HOME_SET_DEC_KEY = 'w'
+HOME_SCORE_INC_KEY = 'a'
+HOME_SCORE_DEC_KEY = 's'
+GUEST_SET_INC_KEY = 'o'
+GUEST_SET_DEC_KEY = 'p'
+GUEST_SCORE_INC_KEY = 'k'
+GUEST_SCORE_DEC_KEY = 'l'
+
 
 class AppConfig(object):
 
@@ -127,6 +144,7 @@ class AppConfig(object):
         self.period_expired_blast = False
         self.timeout_called_blast = False
         self.timeout_expired_blast = False
+        self.enable_keyboard_shortcuts = False
         self.show_comm_stats = False # for debug purposes only, won't be saved
         self.device_name = ''
 
@@ -170,6 +188,8 @@ class AppConfig(object):
                 'Consolle', 'timeout_called_blast')
             self.timeout_expired_blast = config.getboolean(
                 'Consolle', 'timeout_expired_blast')
+            self.enable_keyboard_shortcuts = config.getboolean(
+                'Consolle', 'enable_keyboard_shortcuts')
             self.device_name = config.get('Consolle', 'device_name')
         except:
             pass
@@ -183,6 +203,8 @@ class AppConfig(object):
             str(self.timeout_called_blast))
         config.set('Consolle', 'timeout_expired_blast',
             str(self.timeout_expired_blast))
+        config.set('Consolle', 'enable_keyboard_shortcuts',
+            str(self.enable_keyboard_shortcuts))
         config.set('Consolle', 'device_name', self.device_name)
         config.add_section('TimeView')
         config.set('TimeView', 'period_duration', str(self.period_duration))
@@ -210,6 +232,8 @@ class ConfigDialog(widget.BaseDialog):
         self._timeout_called_blast.set(self._config.timeout_called_blast)
         self._timeout_expired_blast = tk.BooleanVar()
         self._timeout_expired_blast.set(self._config.timeout_expired_blast)
+        self._enable_keyboard_shortcuts = tk.BooleanVar()
+        self._enable_keyboard_shortcuts.set(self._config.enable_keyboard_shortcuts)
         self._show_comm_stats = tk.BooleanVar()
         self._show_comm_stats.set(self._config.show_comm_stats)
         self._serial_port = tk.StringVar()
@@ -262,9 +286,14 @@ class ConfigDialog(widget.BaseDialog):
                 row=5, column=0, stick=tk.W, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
+            text=CONFIG_DIALOG_ENABLE_KEYBOARD_SHORTCUTS_LABEL,
+            variable=self._enable_keyboard_shortcuts).grid(
+                row=6, column=0, stick=tk.W, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            options,
             text=CONFIG_DIALOG_SHOW_COMM_STATS_LABEL,
             variable=self._show_comm_stats).grid(
-                row=6, column=0, stick=tk.W, padx=5, pady=(5, 10))
+                row=7, column=0, stick=tk.W, padx=5, pady=(5, 10))
         serial_port = tk.LabelFrame(
                 master, text=CONFIG_DIALOG_SERIAL_PORT_HEADING)
         serial_port.grid(
@@ -290,6 +319,7 @@ class ConfigDialog(widget.BaseDialog):
         self._config.period_expired_blast = self._period_expired_blast.get()
         self._config.timeout_called_blast = self._timeout_called_blast.get()
         self._config.timeout_expired_blast = self._timeout_expired_blast.get()
+        self._config.enable_keyboard_shortcuts = self._enable_keyboard_shortcuts.get()
         self._config.show_comm_stats = self._show_comm_stats.get()
         self._config.device_name = self._serial_port.get()
         return widget.BaseDialog.ok(self, event)
@@ -405,18 +435,30 @@ class TeamWidget(widget.StyledFrame):
         self._update()
 
     def _on_increment_set(self, event=None):
+        self.increment_set()
+
+    def increment_set(self, event=None):
         self.set = (self.set + 1) % (self._MAX_SET + 1)
         self._update()
 
     def _on_decrement_set(self, event=None):
+        self.decrement_set()
+
+    def decrement_set(self, event=None):
         self.set = (self.set - 1) % (self._MAX_SET + 1)
         self._update()
 
     def _on_increment_score(self, event=None):
+        self.increment_score()
+
+    def increment_score(self, event=None):
         self.score = (self.score + 1) % (self._MAX_SCORE + 1)
         self._update()
 
     def _on_decrement_score(self, event=None):
+        self.decrement_score()
+
+    def decrement_score(self, event=None):
         self.score = (self.score - 1) % (self._MAX_SCORE + 1)
         self._update()
 
@@ -586,10 +628,86 @@ class Application(widget.StyledWidget):
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
         # keyboard shortcuts
-        self._root.bind('<Key-t>', self._on_timeout)
-        self._root.bind('<Key-T>', self._on_timeout)
+        self._root.bind('<KeyPress>', self._on_key_press)
+        self._root.bind('<KeyRelease>', self._on_key_release)
+        self._bind_key(TIMER_STARTSTOP_KEY, self._on_key_timer_start_stop)
+        self._bind_key(TIMER_SET_KEY, self._on_key_timer_set)
+        self._bind_key(TIMER_RESET_KEY, self._on_key_timer_reset)
+        self._bind_key(TIMEOUT_KEY, self._on_key_timeout)
+        self._bind_key(HOME_SET_INC_KEY, self._on_key_home_set_inc)
+        self._bind_key(HOME_SET_DEC_KEY, self._on_key_home_set_dec)
+        self._bind_key(HOME_SCORE_INC_KEY, self._on_key_home_score_inc)
+        self._bind_key(HOME_SCORE_DEC_KEY, self._on_key_home_score_dec)
+        self._bind_key(GUEST_SET_INC_KEY, self._on_key_guest_set_inc)
+        self._bind_key(GUEST_SET_DEC_KEY, self._on_key_guest_set_dec)
+        self._bind_key(GUEST_SCORE_INC_KEY, self._on_key_guest_score_inc)
+        self._bind_key(GUEST_SCORE_DEC_KEY, self._on_key_guest_score_dec)
         # main window events
         self._root.protocol('WM_DELETE_WINDOW', self._on_delete_window)
+
+    def _on_key_press(self, event):
+        if not self._config.enable_keyboard_shortcuts:
+            return
+        if event.char.lower() == SIREN_KEY:
+            self._on_siren_on()
+
+    def _on_key_release(self, event):
+        if not self._config.enable_keyboard_shortcuts:
+            return
+        if event.char.lower() == SIREN_KEY:
+            self._on_siren_off()
+
+    def _bind_key(self, key, method):
+        self._root.bind('<Key-{}>'.format(key), method)
+        self._root.bind('<Key-{}>'.format(key.upper()), method)
+
+    def _on_key_timer_start_stop(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._timer_widget.start_stop()
+
+    def _on_key_timer_set(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._timer_widget.set()
+
+    def _on_key_timer_reset(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._timer_widget.reset()
+
+    def _on_key_timeout(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._on_timeout()
+
+    def _on_key_home_set_inc(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._home_team_widget.increment_set()
+
+    def _on_key_home_set_dec(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._home_team_widget.decrement_set()
+
+    def _on_key_home_score_inc(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._home_team_widget.increment_score()
+
+    def _on_key_home_score_dec(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._home_team_widget.decrement_score()
+
+    def _on_key_guest_set_inc(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._guest_team_widget.increment_set()
+
+    def _on_key_guest_set_dec(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._guest_team_widget.decrement_set()
+
+    def _on_key_guest_score_inc(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._guest_team_widget.increment_score()
+
+    def _on_key_guest_score_dec(self, event=None):
+        if self._config.enable_keyboard_shortcuts:
+            self._guest_team_widget.decrement_score()
 
     def _show_comm_stats(self):
         self._comm_stats_widget.grid(

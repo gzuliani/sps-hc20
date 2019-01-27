@@ -384,11 +384,17 @@ class TimerWidget(StyledFrame):
         self._reset_button.grid(row=1, column=2, stick=tk.W)
 
     def _on_start_stop(self, event=None):
+        self.start_stop()
+
+    def start_stop(self):
         self._timer.start_stop()
         self._was_running = self._timer.is_running()
         self._update_buttons_state()
 
     def _on_set(self, event=None):
+        self.set()
+
+    def set(self):
         if self._timer.is_running():
             return
         minute, second = self._timer.peek()
@@ -412,6 +418,9 @@ class TimerWidget(StyledFrame):
         self.update()
 
     def _on_reset(self, event=None):
+        self.reset()
+
+    def reset(self):
         if self._timer.is_running():
             return
         self._timer.reset()

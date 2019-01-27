@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# Referto Gara v. 0.5
+# Referto Gara v. 0.6
 
 Il programma _Referto Gara_ assiste il refertista durante la gara occupandosi
 di:
@@ -231,29 +231,29 @@ etichette del pulsante di avanzamento di fase sono:
 
  * Partita di campionato
 
-    |   Modalità      | | Pulsante di fase |
-    |:----------------| |:-----------------|
-    | PREPARTITA      | | Inizio 1° Tempo  |
-    | 1° TEMPO        | | Fine 1° Tempo    |
-    | INTERVALLO      | | Inizio 2° Tempo  |
-    | 2° TEMPO        | | Fine 2° Tempo    |
-    | FINE PARTITA    | | -                |
+    |   Modalità      | Pulsante di fase |
+    |:----------------|:-----------------|
+    | PREPARTITA      | Inizio 1° Tempo  |
+    | 1° TEMPO        | Fine 1° Tempo    |
+    | INTERVALLO      | Inizio 2° Tempo  |
+    | 2° TEMPO        | Fine 2° Tempo    |
+    | FINE PARTITA    | -                |
 
  * Partita a eliminazione diretta
 
-    |   Modalità      | | Pulsante di fase |
-    |:----------------| |:-----------------|
-    | PREPARTITA      | | Inizio 1° Tempo  |
-    | 1° TEMPO        | | Fine 1° Tempo    |
-    | INTERVALLO      | | Inizio 2° Tempo  |
-    | 2° TEMPO        | | Fine 2° Tempo    |
-    | INTERVALLO      | | Inizio 1° T.S.   |
-    | 1° TEMPO SUPPL. | | Fine 1° T.S.     |
-    | INTERVALLO      | | Inizio 2° T.S.   |
-    | 2° TEMPO SUPPL. | | Fine 2° T.S.     |
-    | INTERVALLO      | | Rigori           |
-    | RIGORI          | | Fine Partita     |
-    | FINE PARTITA    | | -                |
+    |   Modalità      | Pulsante di fase |
+    |:----------------|:-----------------|
+    | PREPARTITA      | Inizio 1° Tempo  |
+    | 1° TEMPO        | Fine 1° Tempo    |
+    | INTERVALLO      | Inizio 2° Tempo  |
+    | 2° TEMPO        | Fine 2° Tempo    |
+    | INTERVALLO      | Inizio 1° T.S.   |
+    | 1° TEMPO SUPPL. | Fine 1° T.S.     |
+    | INTERVALLO      | Inizio 2° T.S.   |
+    | 2° TEMPO SUPPL. | Fine 2° T.S.     |
+    | INTERVALLO      | Rigori           |
+    | RIGORI          | Fine Partita     |
+    | FINE PARTITA    | -                |
 
    Il programma entra in modalità _1° TEMPO SUPPL._ e _RIGORI_
    solamente se la fase di gioco precedente è terminata in parità.
@@ -302,21 +302,21 @@ non sullo schermo del computer.**
 L'uso del programma diventa assai più veloce se si utilizza la tastiera.
 La tabella sottostante mostra i tasti associati ai principali pulsanti:
 
- | Pulsante          | | Tasto   |
- |:------------------| |:--------|
- | Annulla           | | [Esc]   |
- | OK                | | [Invio] |
- | Cancella Evento   | | [Canc]  |
- | Squadra A         | | A       |
- | Squadra B         | | B       |
- | Cifre             | | 0-9     |
- | Inizio/Fine Tempo | | P       |
- | Goal              | | G       |
- | Timeout           | | T       |
- | Ammonizione       | | A       |
- | 2 Minuti          | | 2       |
- | Squalifica        | | S       |
- | Rigore            | | R       |
+ | Pulsante          | Tasto   |
+ |:------------------|:--------|
+ | Annulla           | [Esc]   |
+ | OK                | [Invio] |
+ | Cancella Evento   | [Canc]  |
+ | Squadra A         | A       |
+ | Squadra B         | B       |
+ | Cifre             | 0-9     |
+ | Inizio/Fine Tempo | P       |
+ | Goal              | G       |
+ | Timeout           | T       |
+ | Ammonizione       | A       |
+ | 2 Minuti          | 2       |
+ | Squalifica        | S       |
+ | Rigore            | R       |
 
 Per registrare la sospensione di due minuti per il giocatore numero 14 della
 squadra B è dunque sufficiente premere la sequenza di tasti:

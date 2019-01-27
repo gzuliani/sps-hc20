@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "Referto Gara"
-APP_VERSION = "0.5" # see setup.py
+APP_VERSION = "0.6" # see setup.py
 
 # TODO:
 # if a dimissed player misses a penalty no warning is emitted
