@@ -4,7 +4,7 @@
 
 The *SPS HC20 Suite* contains two programs that control the SPS HC20 scoreboard
 by means of the custom-made, Arduino-based interface described in
-"[Controllo di un tabellone segnapunti con Arduino](https://gzuliani.bitbucket.io/arduino/arduino-scoreboard.html)" (italian only).
+"[Controllo di un tabellone segnapunti con Arduino](https://gzuliani.github.io/arduino/arduino-scoreboard.html)" (italian only).
 
  * **consolle.py** emulates the actual consolle that controls the scoreboard;
  * **report.py** keeps track of an handball match events to help the technical
