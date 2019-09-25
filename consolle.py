@@ -832,7 +832,7 @@ class Application(widget.StyledWidget):
         self._timeout_timer.reset()
         self._timeout_timer.arm_trigger(0, 50)
         self._timer_widget.change_timer(self._timeout_timer)
-        self._timer_widget.xxx(TIMEOUT_MESSAGE.format(minute, second))
+        self._timer_widget.hide_buttons(TIMEOUT_MESSAGE.format(minute, second))
         self._timeout_timer.start()
         self._timeout_button['text'] = TIMEOUT_END_BUTTON_LABEL
         self._is_timeout = True
@@ -841,7 +841,7 @@ class Application(widget.StyledWidget):
         self._timeout_timer.stop()
         self._timer_widget.change_timer(self._timer)
         self._timeout_button['text'] = TIMEOUT_START_BUTTON_LABEL
-        self._timer_widget.yyy()
+        self._timer_widget.show_buttons()
         self._is_timeout = False
 
     def _timeout_about_to_expire(self):

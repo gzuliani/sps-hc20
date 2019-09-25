@@ -429,11 +429,11 @@ class TimerWidget(StyledFrame):
         self._timer.reset()
         self.update()
 
-    def xxx(self, message):
+    def hide_buttons(self, message):
         self._message.grid(row=1, column=0, columnspan=3, stick=tk.NSEW)
         self._message['text'] = message
 
-    def yyy(self):
+    def show_buttons(self):
         self._message.grid_forget()
 
     def _update_buttons_state(self):
