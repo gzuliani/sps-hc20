@@ -371,6 +371,9 @@ class TimerWidget(StyledFrame):
             self._frame, text=TIME_SET_BUTTON_LABEL)
         self._reset_button = ttk.Button(
             self._frame, text=TIME_RESET_BUTTON_LABEL)
+        self._message = ttk.Label(self._frame)
+        self._message['foreground'] = Palette.RED
+        self._message.configure(anchor='center')
 
     def _create_bindings(self):
         self._start_stop_button['command'] = self._on_start_stop
@@ -425,6 +428,13 @@ class TimerWidget(StyledFrame):
             return
         self._timer.reset()
         self.update()
+
+    def xxx(self, message):
+        self._message.grid(row=1, column=0, columnspan=3, stick=tk.NSEW)
+        self._message['text'] = message
+
+    def yyy(self):
+        self._message.grid_forget()
 
     def _update_buttons_state(self):
         if self._timer.is_running():

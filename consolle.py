@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.6" # see setup.py
+APP_VERSION = "0.7" # see setup.py
 
 try:
     # python 3.x
@@ -50,7 +50,8 @@ BUTTON_PADDING = 10
 
 # main window
 SIREN_BUTTON_LABEL = "Sirena"
-TIMEOUT_BUTTON_LABEL = "Timeout"
+TIMEOUT_START_BUTTON_LABEL = "Timeout"
+TIMEOUT_END_BUTTON_LABEL = "Riprendi"
 BULLETIN_BUTTON_LABEL = "Comunicato"
 CONFIG_BUTTON_LABEL = "Configura"
 QUIT_BUTTON_LABEL = "Esci"
@@ -86,10 +87,7 @@ OK_BUTTON_LABEL = "OK"
 CANCEL_BUTTON_LABEL = "Annulla"
 
 # main window labels
-TIMEOUT_IN_PROGRESS = \
-    "Timeout in corso!\n\n" \
-    "Il tempo di gioco è fermo a {:02d}:{:02d}.\n\n" \
-    "Premere OK alla ripresa del gioco."
+TIMEOUT_MESSAGE = "Timeout in corso! Il tempo di gioco è fermo a {:02d}:{:02d}."
 HOME_TEAM_TITLE = "LOCALI"
 GUEST_TEAM_TITLE = "OSPITI"
 SEVENTH_FOUL_BUTTON_LABEL = "7° FALLO"
@@ -543,6 +541,7 @@ class Application(widget.StyledWidget):
         self._timeout_timer_config.tenth_second_on_last_minute = False
         self._timeout_timer = chrono.Timer()
         self._timeout_timer.set_period_duration(TIMEOUT_DURATION)
+        self._is_timeout = False
         # bulletin window
         self._bulletin_window = None
         # enable styling
@@ -586,7 +585,7 @@ class Application(widget.StyledWidget):
         # main window buttons
         self._siren_button = ttk.Button(self._root, text=SIREN_BUTTON_LABEL)
         self._timeout_button = ttk.Button(
-            self._root, text=TIMEOUT_BUTTON_LABEL)
+            self._root, text=TIMEOUT_START_BUTTON_LABEL)
         self._bulletin_button = ttk.Button(
             self._root, text=BULLETIN_BUTTON_LABEL)
         self._config_button = ttk.Button(self._root, text=CONFIG_BUTTON_LABEL)
@@ -723,21 +722,12 @@ class Application(widget.StyledWidget):
         self._siren_on = False
 
     def _on_timeout(self, event=None):
-        if not self._timer.is_running():
-            return
-        self._timer.stop()
-        minute, second, _ = self._timer_widget.now()
-        if self._config.timeout_called_blast:
-            self._activate_siren()
-        self._timeout_timer.reset()
-        self._timeout_timer.arm_trigger(0, 50)
-        self._timer_widget.change_timer(self._timeout_timer)
-        self._timeout_timer.start()
-        tkMessageBox.showinfo(
-            APP_NAME, TIMEOUT_IN_PROGRESS.format(minute, second))
-        self._timeout_timer.stop()
-        self._timer_widget.change_timer(self._timer)
-        self._timer.start()
+        if self._is_timeout:
+            self._exit_timeout_mode()
+            self._timer.start()
+        else:
+            self._timer.stop()
+            self._enter_timeout_mode()
 
     def _bulletin_window_closed(self):
         self._bulletin_window = None
@@ -774,7 +764,7 @@ class Application(widget.StyledWidget):
             self._timeout_about_to_expire()
         elif self._timeout_timer.is_expired():
             self._timeout_expired()
-        if self._timer.is_running():
+        if self._timer.is_running() or self._is_timeout:
             self._enable(self._timeout_button)
         else:
             self._disable(self._timeout_button)
@@ -828,19 +818,38 @@ class Application(widget.StyledWidget):
 
     def _terminate(self):
         self._timer.stop()
+        self._timeout_timer.stop()
         self._root.destroy()
 
     def _period_expired(self):
         if self._config.period_expired_blast:
             self._activate_siren()
 
+    def _enter_timeout_mode(self):
+        minute, second, _ = self._timer_widget.now()
+        if self._config.timeout_called_blast:
+            self._activate_siren()
+        self._timeout_timer.reset()
+        self._timeout_timer.arm_trigger(0, 50)
+        self._timer_widget.change_timer(self._timeout_timer)
+        self._timer_widget.xxx(TIMEOUT_MESSAGE.format(minute, second))
+        self._timeout_timer.start()
+        self._timeout_button['text'] = TIMEOUT_END_BUTTON_LABEL
+        self._is_timeout = True
+
+    def _exit_timeout_mode(self):
+        self._timeout_timer.stop()
+        self._timer_widget.change_timer(self._timer)
+        self._timeout_button['text'] = TIMEOUT_START_BUTTON_LABEL
+        self._timer_widget.yyy()
+        self._is_timeout = False
+
     def _timeout_about_to_expire(self):
         if self._config.timeout_expired_blast:
-            self._disable(self._timeout_button)
             self._activate_siren()
 
     def _timeout_expired(self):
-        self._timer_widget.change_timer(self._timer)
+        self._exit_timeout_mode()
 
     def _activate_siren(self):
         self._root.after(0, self._on_siren_on)

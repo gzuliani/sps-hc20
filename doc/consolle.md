@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# SPS HC20 - Consolle v. 0.6
+# SPS HC20 - Consolle v. 0.7
 
 Il programma _Consolle_ emula la consolle di controllo del tabellone IBLE SPS
 HC20.
@@ -146,16 +146,17 @@ tutta la durata dell'interruzione, e il conteggio dovrà essere riavviato
 premendo il pulsante **Avvia** alla ripresa del gioco comandata dall'arbitro.
 Nel secondo caso, il tempo di gioco mostrato nel contaminuti viene sostituito
 dal conteggio del minuto di timeout e, se la configurazione lo richiede, viene
-emesso il suono di sirena di inizio timeout, dopodiché appare la maschera di
-timeout:
+emesso il suono di sirena di inizio timeout, dopodiché i pulsanti di controllo
+del contaminuti vengono sostituiti dall'indicazione dell'istante in cui il
+gioco è stato interrotto:
 
-![maschera di timeout](./img/consolle_timeout.png)
+![maschera di timeout](./img/consolle_timeout_top_small.png)
 
 Al raggiungimento del cinquantesimo secondo di timeout, sempre se richiesto
 dalla configurazione, verrà emesso il suono di sirena di imminente fine del
 timeout. Esaurito il minuto di timeout, sul contaminuti riapparirà il minuto,
 secondo di interruzione del gioco. Il conteggio del tempo di gara ricomincierà
-alla chiusura della maschera di timeout, **anche se il minuto di timeout non
+alla pressione del pulsante **Riprendi**, **anche se il minuto di timeout non
 è stato completato.**
 
 
@@ -192,5 +193,3 @@ semplicemente evitando di azzerare il contaminuti al termine di ogni frazione.
 
 Il conteggio dei tempi supplementari si ottiene riconfigurando la durata della
 frazione di gioco a 5 minuti una volta conclusi i primi due tempi regolamentari.
-
-## Appendice A

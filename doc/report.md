@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# Referto Gara v. 0.6
+# Referto Gara v. 0.7
 
 Il programma _Referto Gara_ assiste il refertista durante la gara occupandosi
 di:
