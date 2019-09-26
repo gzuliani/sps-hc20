@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.7" # see setup.py
+APP_VERSION = "0.7.1" # see setup.py
 
 try:
     # python 3.x

@@ -338,7 +338,9 @@ class TimerWidget(StyledFrame):
 
     def __init__(self, root, timer, font):
         self._timer = timer
-        self._font = font
+        self._timer_font = font
+        self._message_font = font[:1] + (font[1]/6,) + font[2:]
+        print self._message_font
         self._was_running = self._timer.is_running()
         StyledFrame.__init__(self, root)
 
@@ -361,9 +363,7 @@ class TimerWidget(StyledFrame):
             self._update_buttons_state()
 
     def _create_widgets(self):
-        self._time = ttk.Label(
-            self._frame,
-            font=self._font)
+        self._time = ttk.Label(self._frame, font=self._timer_font)
         self._time['foreground'] = Palette.RED
         self._start_stop_button = ttk.Button(
             self._frame, text=TIME_START_BUTTON_LABEL)
@@ -371,7 +371,7 @@ class TimerWidget(StyledFrame):
             self._frame, text=TIME_SET_BUTTON_LABEL)
         self._reset_button = ttk.Button(
             self._frame, text=TIME_RESET_BUTTON_LABEL)
-        self._message = ttk.Label(self._frame)
+        self._message = ttk.Label(self._frame, font=self._message_font)
         self._message['foreground'] = Palette.RED
         self._message.configure(anchor='center')
 
