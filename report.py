@@ -698,22 +698,22 @@ class DeleteEventObserver(object):
         return True
 
     def accept_warning_for_dismissed_player(self, player):
-        self.warnings.append(WARNING_FOR_DISMISSED_PLAYER.format(
+        self.warnings.append(ACCEPT_WARNING_FOR_DISMISSED_PLAYER.format(
             player.team_id, player.number))
         return True
 
     def accept_warning_for_warned_player(self, player):
-        self.warnings.append(WARNING_FOR_WARNED_PLAYER.format(
+        self.warnings.append(ACCEPT_WARNING_FOR_WARNED_PLAYER.format(
             player.team_id, player.number))
         return True
 
     def accept_suspension_for_dismissed_player(self, player):
-        self.warnings.append(SUSPENSION_FOR_DISMISSED_PLAYER.format(
+        self.warnings.append(ACCEPT_SUSPENSION_FOR_DISMISSED_PLAYER.format(
             player.team_id, player.number))
         return True
 
     def accept_dismiss_for_dismissed_player(self, player):
-        self.warnings.append(DISMISS_FOR_DISMISSED_PLAYER.format(
+        self.warnings.append(ACCEPT_DISMISS_FOR_DISMISSED_PLAYER.format(
             player.team_id, player.number))
         return True
 
