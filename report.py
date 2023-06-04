@@ -11,7 +11,7 @@ APP_VERSION = "0.7.1" # see setup.py
 
 try:
     # python 3.x
-    from configparser import SafeConfigParser
+    from configparser import ConfigParser
     import tkinter as tk
     import tkinter.ttk as ttk
     from tkinter import filedialog as tkFileDialog
@@ -19,7 +19,7 @@ try:
     from tkinter import simpledialog as tkSimpleDialog
 except:
     # python 2.x
-    from ConfigParser import SafeConfigParser
+    from ConfigParser import SafeConfigParser as ConfigParser
     import Tkinter as tk
     import ttk
     import tkFileDialog
@@ -356,7 +356,7 @@ class AppConfig(object):
 
     def load(self, path):
         try:
-            config = SafeConfigParser()
+            config = ConfigParser()
             config.read(path)
             self.period_duration = config.getint(
                 'TimeView', 'period_duration')
@@ -382,7 +382,7 @@ class AppConfig(object):
             pass
 
     def save(self, path):
-        config = SafeConfigParser()
+        config = ConfigParser()
         config.add_section('Report')
         config.set('Report', 'period_expired_blast',
             str(self.period_expired_blast))

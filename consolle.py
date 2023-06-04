@@ -6,13 +6,13 @@ APP_VERSION = "0.7.1" # see setup.py
 
 try:
     # python 3.x
-    from configparser import SafeConfigParser
+    from configparser import ConfigParser
     import tkinter as tk
     import tkinter.ttk as ttk
     from tkinter import messagebox as tkMessageBox
 except:
     # python 2.x
-    from ConfigParser import SafeConfigParser
+    from ConfigParser import SafeConfigParser as ConfigParser
     import Tkinter as tk
     import ttk
     import tkMessageBox
@@ -172,7 +172,7 @@ class AppConfig(object):
 
     def load(self, path):
         try:
-            config = SafeConfigParser()
+            config = ConfigParser()
             config.read(path)
             self.period_duration = config.getint(
                 'TimeView', 'period_duration')
@@ -193,7 +193,7 @@ class AppConfig(object):
             pass
 
     def save(self, path):
-        config = SafeConfigParser()
+        config = ConfigParser()
         config.add_section('Consolle')
         config.set('Consolle', 'period_expired_blast',
             str(self.period_expired_blast))

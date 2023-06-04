@@ -12,7 +12,13 @@ except:
     import ttk
     import tkMessageBox
 
-import Queue
+try:
+    # python 3.x
+    import Queue as queue
+except:
+    # python 2.x
+    import queue
+
 import re
 import sys
 import threading
@@ -271,9 +277,9 @@ class Timer(object):
     def __init__(self, config=TimeViewConfig()):
         self._stopwatch = Stopwatch()
         self._period = Period(self._stopwatch)
-        self._period_queue = Queue.Queue()
+        self._period_queue = queue.Queue()
         self._trigger = Trigger(self._stopwatch)
-        self._trigger_queue = Queue.Queue()
+        self._trigger_queue = queue.Queue()
         self._time_view = TimeView(config=config)
 
     def configure(self, config):
@@ -292,14 +298,14 @@ class Timer(object):
         try:
             self._period_queue.get_nowait()
             return True
-        except Queue.Empty:
+        except queue.Empty:
             return False
 
     def is_triggered(self):
         try:
             self._trigger_queue.get_nowait()
             return True
-        except Queue.Empty:
+        except queue.Empty:
             return False
 
     def now(self):
@@ -339,8 +345,7 @@ class TimerWidget(StyledFrame):
     def __init__(self, root, timer, font):
         self._timer = timer
         self._timer_font = font
-        self._message_font = font[:1] + (font[1]/6,) + font[2:]
-        print self._message_font
+        self._message_font = font[:1] + (int(font[1]/6),) + font[2:]
         self._was_running = self._timer.is_running()
         StyledFrame.__init__(self, root)
 

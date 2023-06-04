@@ -153,11 +153,11 @@ class Font(object):
         if len(text) == 1:
             return self._encode(text[0])
         else:
-            return bytearray(''.join([self._encode(i) for i in text]))
+            return bytearray([self._encode(i) for i in text])
 
     def _encode(self, character):
         code = ord(character)
-        return chr(self._FONT[code - 32]) if 31 < code < 128 else self._BLANK
+        return self._FONT[code - 32] if 31 < code < 128 else self._BLANK
 
 
 class ScrollingText(object):
@@ -286,7 +286,6 @@ class Scoreboard(object):
         # any banner to show?
         self._scrolling_text.transform(packet_to_transmit)
         if packet_to_transmit != self._last_transmitted_packet:
-            #~ print ' '.join(['{:02x}'.format(x) for x in packet_to_transmit])
             self._port.write(packet_to_transmit)
             response = self._port.read()
             if not response:
@@ -304,10 +303,10 @@ class Scoreboard(object):
         return value % 10
 
     def _tens(self, value):
-        return -1 if value < 10 else (value / 10) % 10
+        return -1 if value < 10 else int(value / 10) % 10
 
     def _hundreds(self, value):
-        return -1 if value < 100 else (value / 100) % 10
+        return -1 if value < 100 else int(value / 100) % 10
 
     def _encode_digit(self, value):
         return self._blank if value < 0 or value > 9 else self._digits[value]
