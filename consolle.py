@@ -78,6 +78,8 @@ CONFIG_DIALOG_TIMEOUT_CALLED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di inizio timeout"
 CONFIG_DIALOG_TIMEOUT_EXPIRED_BLAST_BUTTON_LABEL = \
     "Suona la sirena di imminente fine timeout"
+CONFIG_DIALOG_COUNTDOWN = \
+    "Conta il tempo all'indietro"
 CONFIG_DIALOG_ENABLE_KEYBOARD_SHORTCUTS_LABEL = \
     "Abilita le scorciatoie da tastiera"
 CONFIG_DIALOG_SHOW_COMM_STATS_LABEL = \
@@ -170,6 +172,14 @@ class AppConfig(object):
     def tenth_second_on_last_minute(self, value):
         self._time_view_config.tenth_second_on_last_minute = value
 
+    @property
+    def countdown(self):
+        return self._time_view_config.countdown
+
+    @countdown.setter
+    def countdown(self, value):
+        self._time_view_config.countdown = value
+
     def load(self, path):
         try:
             config = ConfigParser()
@@ -186,6 +196,8 @@ class AppConfig(object):
                 'Consolle', 'timeout_called_blast')
             self.timeout_expired_blast = config.getboolean(
                 'Consolle', 'timeout_expired_blast')
+            self.countdown = config.getboolean(
+                'Consolle', 'countdown')
             self.enable_keyboard_shortcuts = config.getboolean(
                 'Consolle', 'enable_keyboard_shortcuts')
             self.device_name = config.get('Consolle', 'device_name')
@@ -201,6 +213,7 @@ class AppConfig(object):
             str(self.timeout_called_blast))
         config.set('Consolle', 'timeout_expired_blast',
             str(self.timeout_expired_blast))
+        config.set('Consolle', 'countdown', str(self.countdown))
         config.set('Consolle', 'enable_keyboard_shortcuts',
             str(self.enable_keyboard_shortcuts))
         config.set('Consolle', 'device_name', self.device_name)
@@ -230,6 +243,8 @@ class ConfigDialog(widget.BaseDialog):
         self._timeout_called_blast.set(self._config.timeout_called_blast)
         self._timeout_expired_blast = tk.BooleanVar()
         self._timeout_expired_blast.set(self._config.timeout_expired_blast)
+        self._countdown = tk.BooleanVar()
+        self._countdown.set(self._config.countdown)
         self._enable_keyboard_shortcuts = tk.BooleanVar()
         self._enable_keyboard_shortcuts.set(self._config.enable_keyboard_shortcuts)
         self._show_comm_stats = tk.BooleanVar()
@@ -284,14 +299,19 @@ class ConfigDialog(widget.BaseDialog):
                 row=5, column=0, stick=tk.W, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
+            text=CONFIG_DIALOG_COUNTDOWN,
+            variable=self._countdown).grid(
+                row=6, column=0, stick=tk.W, padx=5, pady=(5, 0))
+        tk.Checkbutton(
+            options,
             text=CONFIG_DIALOG_ENABLE_KEYBOARD_SHORTCUTS_LABEL,
             variable=self._enable_keyboard_shortcuts).grid(
-                row=6, column=0, stick=tk.W, padx=5, pady=(5, 0))
+                row=7, column=0, stick=tk.W, padx=5, pady=(5, 0))
         tk.Checkbutton(
             options,
             text=CONFIG_DIALOG_SHOW_COMM_STATS_LABEL,
             variable=self._show_comm_stats).grid(
-                row=7, column=0, stick=tk.W, padx=5, pady=(5, 10))
+                row=8, column=0, stick=tk.W, padx=5, pady=(5, 10))
         serial_port = tk.LabelFrame(
                 master, text=CONFIG_DIALOG_SERIAL_PORT_HEADING)
         serial_port.grid(
@@ -317,6 +337,7 @@ class ConfigDialog(widget.BaseDialog):
         self._config.period_expired_blast = self._period_expired_blast.get()
         self._config.timeout_called_blast = self._timeout_called_blast.get()
         self._config.timeout_expired_blast = self._timeout_expired_blast.get()
+        self._config.countdown = self._countdown.get()
         self._config.enable_keyboard_shortcuts = self._enable_keyboard_shortcuts.get()
         self._config.show_comm_stats = self._show_comm_stats.get()
         self._config.device_name = self._serial_port.get()

@@ -43,6 +43,16 @@ INVALID_TIME_VALUE = \
     "devono essere separati da un carattere qualunque."
 
 class ThreadedClock(object):
+    """Emits a `tick` event every fraction of a second.
+
+    ThreadedClock does not guarantee that the `tick` calls are equally spaced
+    in time, although it does it best to do so. It guarantees that no `tick`
+    is lost. They may become unequally spaced or in bursts, but they will
+    arrive, soon or later.
+
+    Note: the `tick` method is called on a different thread than the one that
+    created the object. Keep in mind thread-safety when developing a
+    ThreadedClock Observer object."""
 
     STOP = 1
     CONTINUE = 2
@@ -83,6 +93,13 @@ class ThreadedClock(object):
 
 
 class Stopwatch(object):
+    """Convert the ticks of a `ThreadedClock` in a time duration.
+
+    Time durations are expressed as (minute, second, tenth) tuples.
+
+    Stopwatches can be manually started and stopped. Stopwatches stop
+    automatically when one of the registered `Trigger`s becomes active
+    (i.e. the `should_stop` returns `True`)."""
 
     def __init__(self):
         self._resolution = -2 # set resolution to 1/100s
@@ -93,6 +110,7 @@ class Stopwatch(object):
         self._triggers = []
         self._observers = []
         self._set(0)
+        self.count_up()
 
     def register_trigger(self, trigger):
         self._triggers.append(trigger)
@@ -102,6 +120,17 @@ class Stopwatch(object):
 
     def now(self):
         return self._time
+
+    def count_up(self):
+        self._full_scale = (99, 59, 9)
+        self._tick_increment = 1
+
+    def count_down(self):
+        self._full_scale = (0, 0, 0)
+        self._tick_increment = -1
+
+    def is_counting_down(self):
+        return self._tick_increment < 0
 
     def is_running(self):
         return self._is_running
@@ -129,10 +158,10 @@ class Stopwatch(object):
 
     def tick(self):
         _time = self._ticks_to_time()
-        if _time == (99, 59, 9):
+        if _time == self._full_scale:
             self._is_running = False
             return ThreadedClock.STOP
-        self._ticks += 1
+        self._ticks += self._tick_increment
         _time = self._ticks_to_time()
         if _time != self._time:
             self._time = _time
@@ -146,11 +175,19 @@ class Stopwatch(object):
         self._time = self._ticks_to_time()
 
     def _ticks_to_time(self):
+        """Convert the current tick count to (minutes, seconds, tenths of second)"""
         elapsed = self._ticks / self._ticks_to_seconds
         return (int(elapsed / 60), int(elapsed) % 60, int(10 * elapsed) % 10)
 
 
 class Period(object):
+    """A trigger that activates when a given period of time is elapsed.
+
+    To ensure thread-safety, the activation is signalled to the client by
+    enqueuing the current minute indication into a thread-safe queue.
+
+    The client can deduce that the trigger activated by inspecting the
+    content of the synchronized queue."""
 
     def __init__(self, stopwatch):
         self._stopwatch = stopwatch
@@ -161,7 +198,11 @@ class Period(object):
 
     def is_last_minute(self):
         minute, _, _ = self._stopwatch.now()
-        return self._elapsed_time(minute) % self._duration == self._duration - 1
+        minute_in_period = self._elapsed_time(minute) % self._duration
+        if self._stopwatch.is_counting_down():
+            return minute_in_period == 0
+        else:
+            return minute_in_period == self._duration - 1
 
     def set_duration(self, minutes, queue):
         self._duration = minutes
@@ -188,6 +229,13 @@ class Period(object):
 
 
 class Trigger(object):
+    """A trigger that activates when a given time is reached.
+
+    To ensure thread-safety, the activation is signalled to the client by
+    enqueuing the current minute indication into a thread-safe queue.
+
+    The client can deduce that the trigger activated by inspecting the
+    content of the synchronized queue."""
 
     def __init__(self, stopwatch):
         self._stopwatch = stopwatch
@@ -215,10 +263,12 @@ class TimeViewConfig(object):
         self,
         aggregate_time=False,
         leading_zero_in_minute=False,
-        tenth_second_on_last_minute=True):
+        tenth_second_on_last_minute=True,
+        countdown=False):
             self.aggregate_time = aggregate_time
             self.leading_zero_in_minute = leading_zero_in_minute
             self.tenth_second_on_last_minute = tenth_second_on_last_minute
+            self.countdown = countdown
 
     def to_aggregate_time(self, phase, minute, second, tenth):
         raise NotImplementedError
@@ -273,6 +323,10 @@ class TimeView(object):
 
 
 class Timer(object):
+    """General timer manager.
+
+    Timer has one `Stopwatch` and two triggers: one for the automatic stop
+    at the end of the period and a generic one for customization."""
 
     def __init__(self, config=TimeViewConfig()):
         self._stopwatch = Stopwatch()
@@ -284,6 +338,10 @@ class Timer(object):
 
     def configure(self, config):
         self._time_view.configure(config)
+        if config.countdown:
+            self._stopwatch.count_down()
+        else:
+            self._stopwatch.count_up()
 
     def set_period_duration(self, minutes):
         self._period.set_duration(minutes, self._period_queue)
