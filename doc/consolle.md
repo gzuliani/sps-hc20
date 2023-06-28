@@ -59,6 +59,8 @@ I parametri della configurazione sono:
  * **Suona la sirena di imminente fine del timeout**: emette un suono di sirena
    della durata di un secondo a dieci secondi dal termine del timeout;
 
+ * **Conta il tempo all'indietro**: effettua un conto alla rovescia;
+
  * **Abilita le scorciatoie da tastiera**: permette di comandare il tabellone
    per mezzo della tastiera:
    
@@ -178,11 +180,6 @@ premuto il tasto **Nascondi** e comunque alla chiusura della maschera. La
 visualizzazione del comunicato non interrompe un eventuale conteggio
 sottostante. **Attenzione: il testo scorrevole appare solo sul tabellone,
 non sulla Consolle.**
-
-### Conteggio a rovescia
-
-Il conteggio alla rovescia non è disponibile nella versione attuale del
-programma.
 
 ### Tempo cumulativo
 
