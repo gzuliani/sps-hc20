@@ -197,7 +197,9 @@ class Period(object):
         self._expired_periods = []
 
     def is_last_minute(self):
-        minute, _, _ = self._stopwatch.now()
+        minute, second, tenth = self._stopwatch.now()
+        if second == 0 and tenth == 0:
+            return False
         minute_in_period = self._elapsed_time(minute) % self._duration
         if self._stopwatch.is_counting_down():
             return minute_in_period == 0
