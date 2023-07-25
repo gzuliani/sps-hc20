@@ -354,6 +354,10 @@ class AppConfig(object):
     def tenth_second_on_last_minute(self, value):
         self.time_view_config.tenth_second_on_last_minute = value
 
+    @property
+    def countdown(self):
+        return False # not yet supported
+
     def load(self, path):
         try:
             config = ConfigParser()
@@ -1527,12 +1531,11 @@ class Application(widget.StyledWidget):
     def _on_progress(self, event=None):
         if self._is_disabled(self._progress_button):
             return
+        if self._period_timer.is_running():
+            self._period_timer.stop()
         timestamp = self._match.timestamp()
         next_phase = self._match.next_phase()
         if next_phase.is_live:
-            if self._period_timer.is_running():
-                self._period_timer.stop()
-            self._period_timer.reset()
             self._period_timer.set_period_duration(next_phase.duration)
             timestamp = self._match.timestamp()
             self._period_timer.start()

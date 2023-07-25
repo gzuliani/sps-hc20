@@ -153,8 +153,8 @@ class Stopwatch(object):
         for observer in self._observers:
             observer.time_changed(*self._time)
 
-    def reset(self):
-        self.set(0, 0)
+    def reset(self, period):
+        self.set(period if self.is_counting_down() else 0, 0)
 
     def tick(self):
         _time = self._ticks_to_time()
@@ -203,6 +203,9 @@ class Period(object):
             return minute_in_period == 0
         else:
             return minute_in_period == self._duration - 1
+
+    def duration(self):
+        return self._duration
 
     def set_duration(self, minutes, queue):
         self._duration = minutes
@@ -386,7 +389,7 @@ class Timer(object):
         self._stopwatch.set(*self._time_view.revert(minute, second))
 
     def reset(self):
-        self._stopwatch.reset()
+        self._stopwatch.reset(self._period.duration())
 
     def figures(self):
         return self._time_view.figures(self._stopwatch, self._period)

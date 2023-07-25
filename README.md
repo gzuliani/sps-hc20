@@ -6,8 +6,8 @@ The *SPS HC20 Suite* contains two programs that control the SPS HC20 scoreboard
 by means of the custom-made, Arduino-based interface described in
 "[Controllo di un tabellone segnapunti con Arduino](https://gzuliani.github.io/arduino/arduino-scoreboard.html)" (italian only).
 
- * **consolle.py** emulates the actual consolle that controls the scoreboard;
- * **report.py** keeps track of an handball match events to help the technical
+* **consolle.py** emulates the actual consolle that controls the scoreboard;
+* **report.py** keeps track of an handball match events to help the technical
    delegates (score and time keepers) to compile the official match report
    sheet.
 
@@ -24,10 +24,10 @@ The drivers for Windows 7 and previous versions can be downloaded from the
 
 ### Python
 
-The code uses the _pyserial_ module.
+The code uses the *pyserial* module.
 
-**Warning**: if you intend to compile the Python code with _py2exe_ and run it
-on Windows XP then the 2.7 release of _pyserial_ must be used, see for example
+**Warning**: if you intend to compile the Python code with *py2exe* and run it
+on Windows XP then the 2.7 release of *pyserial* must be used, see for example
 "[On Windws[sic] XP not support CancelIO](https://github.com/pyserial/pyserial/issues/148)".
 
 ## Issues
@@ -62,4 +62,4 @@ for details), but it has its drawbacks: it prevents any future firmware upload.
 
 ## Credits
 
-Icons made by Freepik from www.flaticon.com.
+Icons made by Freepik from [www.flaticon.com](www.flaticon.com).

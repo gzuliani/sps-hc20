@@ -1,6 +1,6 @@
 [//]: # (encoding=utf-8)
 
-# SPS HC20 - Consolle v. 0.7
+# SPS HC20 - Consolle v. 0.7.3
 
 Il programma _Consolle_ emula la consolle di controllo del tabellone IBLE SPS
 HC20.
@@ -39,31 +39,31 @@ All'avvio del programma appare la maschera di configurazione:
 
 I parametri della configurazione sono:
 
- * **Durata di un tempo**: durata di una frazione di gioco, espresso in minuti;
+* **Durata di un tempo**: durata di una frazione di gioco, espresso in minuti;
 
- * **Mostra lo zero iniziale nei minuti**: aggiunge lo zero delle decine quando
-   il numero di minuti è inferiore a 10. Supponendo di trovarsi al minuto 7
-   e 42 secondi di gioco, questa opzione consente di visualizzare l'orario
-   **07:42** anziché **7:42**;
+* **Mostra lo zero iniziale nei minuti**: aggiunge lo zero delle decine quando
+  il numero di minuti è inferiore a 10. Supponendo di trovarsi al minuto 7
+  e 42 secondi di gioco, questa opzione consente di visualizzare l'orario
+  **07:42** anziché **7:42**;
 
- * **Mostra i decimi di secondo nell'ultimo minuto**: mostra secondo, centesimo
-   di secondo (arrotondato alla decina precedente) anzichè minuto, secondo nel
-   contaminuti durante l'ultimo minuto di ogni frazione di gioco;
+* **Mostra i decimi di secondo nell'ultimo minuto**: mostra secondo, centesimo
+  di secondo (arrotondato alla decina precedente) anzichè minuto, secondo nel
+  contaminuti durante l'ultimo minuto di ogni frazione di gioco;
 
- * **Suona la sirena di fine tempo**: emette un suono di sirena della durata di
-   un secondo al termine di ogni frazione di gioco;
+* **Suona la sirena di fine tempo**: emette un suono di sirena della durata di
+  un secondo al termine di ogni frazione di gioco;
 
- * **Suona la sirena di inizio timeout**: emette un suono di sirena della
-   durata di un secondo alla chiamata di un timeout;
+* **Suona la sirena di inizio timeout**: emette un suono di sirena della
+  durata di un secondo alla chiamata di un timeout;
 
- * **Suona la sirena di imminente fine del timeout**: emette un suono di sirena
-   della durata di un secondo a dieci secondi dal termine del timeout;
+* **Suona la sirena di imminente fine del timeout**: emette un suono di sirena
+  della durata di un secondo a dieci secondi dal termine del timeout;
 
- * **Conta il tempo all'indietro**: effettua un conto alla rovescia;
+* **Conta il tempo all'indietro**: effettua un conto alla rovescia;
 
- * **Abilita le scorciatoie da tastiera**: permette di comandare il tabellone
-   per mezzo della tastiera:
-   
+* **Abilita le scorciatoie da tastiera**: permette di comandare il tabellone
+  per mezzo della tastiera:
+
     | Funzione          | Tasto |
     |:------------------|:------|
     | Avvia/Pausa       |   R   |
@@ -80,16 +80,16 @@ I parametri della configurazione sono:
     | Punti Ospiti +    |   K   |
     | Punti Ospiti -    |   L   |
 
- * **Mostra le statistiche di comunicazione**: visualizza alcune statistiche
-   riguardanti la comunicazione tra il programma e il circuito di interfaccia,
-   utili nella diagnostica dei problemi relativi al controllo del tabellone:
+* **Mostra le statistiche di comunicazione**: visualizza alcune statistiche
+  riguardanti la comunicazione tra il programma e il circuito di interfaccia,
+  utili nella diagnostica dei problemi relativi al controllo del tabellone:
 
-   ![statistiche di comunicazione](./img/consolle_comm_stats.png)
+  ![statistiche di comunicazione](./img/consolle_comm_stats.png)
 
- * **Nome del dispositivo**: identificativo della porta cui è collegato il
-   circuito di controllo del tabellone. Su Windows è il nome di una porta
-   seriale (es. **COM3**), su Linux il nome di un pseudo-terminale (es.
-   **/dev/ttyACM0**).
+* **Nome del dispositivo**: identificativo della porta cui è collegato il
+  circuito di controllo del tabellone. Su Windows è il nome di una porta
+  seriale (es. **COM3**), su Linux il nome di un pseudo-terminale (es.
+  **/dev/ttyACM0**).
 
 Il programma salva i parametri nel file
 _.sps-hc20_consolle.cfg_ che si trova tipicamente nella cartella
@@ -160,7 +160,6 @@ timeout. Esaurito il minuto di timeout, sul contaminuti riapparirà il minuto,
 secondo di interruzione del gioco. Il conteggio del tempo di gara ricomincierà
 alla pressione del pulsante **Riprendi**, **anche se il minuto di timeout non
 è stato completato.**
-
 
 ### Comunicato
 

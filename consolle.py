@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.7.2" # see setup.py
+APP_VERSION = "0.7.3" # see setup.py
 
 try:
     # python 3.x
@@ -836,6 +836,8 @@ class Application(widget.StyledWidget):
             self._show_comm_stats()
         else:
             self._hide_comm_stats()
+        # reset the main timer
+        self._timer_widget.reset()
 
     def _terminate(self):
         self._timer.stop()
