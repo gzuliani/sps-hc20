@@ -94,6 +94,7 @@ L'uso del programma è in buona parte intuitivo. Ci sono tuttavia alcuni aspetti
 Il timeout può essere gestito in due modalità: arrestando il contaminuti con il pulsante **Pausa**, oppure attraverso il pulsante **Timeout**. Nel primo caso il tabellone mostrerà il minuto, secondo di inizio del timeout per tutta la durata dell'interruzione, e il conteggio dovrà essere riavviato premendo il pulsante **Avvia** alla ripresa del gioco comandata dall'arbitro. Nel secondo caso, il tempo di gioco mostrato nel contaminuti viene sostituito dal conteggio del minuto di timeout e, se la configurazione lo richiede, viene emesso il suono di sirena di inizio timeout, dopodiché i pulsanti di controllo del contaminuti vengono sostituiti dall'indicazione dell'istante in cui il gioco è stato interrotto:
 
 ![maschera di timeout](./img/consolle_timeout_top_small.png)
+
 Al raggiungimento del cinquantesimo secondo di timeout, sempre se richiesto dalla configurazione, verrà emesso il suono di sirena di imminente fine del timeout. Esaurito il minuto di timeout, sul contaminuti riapparirà il minuto, secondo di interruzione del gioco. Il conteggio del tempo di gara ricomincierà alla pressione del pulsante **Riprendi**, **anche se il minuto di timeout non è stato completato.**
 
 ### Comunicato

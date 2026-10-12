@@ -1,21 +1,18 @@
-from distutils.core import setup
-import py2exe
+from py2exe import freeze
 
-setup(
+freeze(
     windows = [
         {
             "script": "report.py",
             "icon_resources": [(1, "report.ico")],
-            "name": "report",
-            "version": "0.7.1",
+            "version_info": {"version": "0.7.1"},
         },
         {
             "script": "consolle.py",
             "icon_resources": [(1, "consolle.ico")],
-            "name": "consolle",
-            "version": "0.7.4",
+            "version_info": {"version": "0.7.4"},
         },
     ],
     data_files = [('', ['report.gif', 'consolle.gif'])])
 
-# to create the distribution, run `python setup.py py2exe`
+# to create the distribution, run `python setup.py`
