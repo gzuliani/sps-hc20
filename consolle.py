@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 APP_NAME = "SPS HC20 - CONSOLLE"
-APP_VERSION = "0.7.3" # see setup.py
+APP_VERSION = "0.7.4" # see setup.py
 
 try:
     # python 3.x
@@ -19,7 +19,6 @@ except:
 
 import os
 import sys
-import time
 
 import chrono
 from common import BulletinWindow
@@ -54,7 +53,10 @@ TIMEOUT_START_BUTTON_LABEL = "Timeout"
 TIMEOUT_END_BUTTON_LABEL = "Riprendi"
 BULLETIN_BUTTON_LABEL = "Comunicato"
 CONFIG_BUTTON_LABEL = "Configura"
+RESET_SCORES_BUTTON_LABEL = "Azzera Punteggi"
 QUIT_BUTTON_LABEL = "Esci"
+
+CONFIRM_RESET_SCORES = "Azzerare i punteggi delle due squadre?"
 
 # configuration dialog labels
 CONFIG_DIALOG_TITLE = "Configurazione Consolle"
@@ -497,6 +499,10 @@ class TeamWidget(widget.StyledFrame):
     def second_timeout(self):
         return self._second_timeout.get()
 
+    def reset_score(self):
+        self.score = 0
+        self._update()
+
 
 class CommStatWidget(object):
 
@@ -607,37 +613,43 @@ class Application(widget.StyledWidget):
         self._siren_button = ttk.Button(self._root, text=SIREN_BUTTON_LABEL)
         self._timeout_button = ttk.Button(
             self._root, text=TIMEOUT_START_BUTTON_LABEL)
+        self._button_bar = tk.Frame(self._root)
+        self._button_bar['background'] = self._BACKGROUND_COLOR
         self._bulletin_button = ttk.Button(
-            self._root, text=BULLETIN_BUTTON_LABEL)
-        self._config_button = ttk.Button(self._root, text=CONFIG_BUTTON_LABEL)
-        self._quit_button = ttk.Button(self._root, text=QUIT_BUTTON_LABEL)
+            self._button_bar, text=BULLETIN_BUTTON_LABEL)
+        self._reset_scores_button = ttk.Button(
+            self._button_bar, text=RESET_SCORES_BUTTON_LABEL)
+        self._config_button = ttk.Button(
+            self._button_bar, text=CONFIG_BUTTON_LABEL)
+        self._quit_button = ttk.Button(
+            self._button_bar, text=QUIT_BUTTON_LABEL)
 
     def _define_layout(self):
         # time
-        self._timer_widget.grid(row=0, column=0, columnspan=5)
-        # scores
-        self._home_team_widget.grid(
-            row=3, column=0, padx=(0, 5), pady=(5, 0))
-        ttk.Separator(self._root, orient='vertical').grid(
-            row=3, column=1, stick=tk.NS, pady=(5, 0))
-        self._guest_team_widget.grid(
-            row=3, column=2, columnspan=3, padx=(5, 0), pady=(5, 0))
+        self._timer_widget.grid(row=0, column=0, columnspan=3)
         # main window buttons
         self._siren_button.grid(
             row=1, column=0, stick=tk.E, padx=5, pady=(10, 5))
         self._timeout_button.grid(
             row=1, column=2, stick=tk.W, padx=5, pady=(10, 5))
+        # scores
+        self._home_team_widget.grid(
+            row=2, column=0, padx=(0, 5), pady=(5, 0))
+        ttk.Separator(self._root, orient='vertical').grid(
+            row=2, column=1, stick=tk.NS, pady=(5, 0))
+        self._guest_team_widget.grid(
+            row=2, column=2, padx=(5, 0), pady=(5, 0))
         ttk.Separator(self._root, orient='horizontal').grid(
-            row=4, column=0, columnspan=5, stick=tk.S + tk.EW, padx=5, pady=5)
-        self._bulletin_button.grid(
-            row=5, column=0, stick=tk.SW, padx=5, pady=5)
-        self._config_button.grid(
-            row=5, column=3, stick=tk.SE, padx=5, pady=5)
-        self._quit_button.grid(
-            row=5, column=4, stick=tk.SE, padx=(0, 5), pady=5)
+            row=4, column=0, columnspan=3, stick=tk.S + tk.EW, padx=5, pady=5)
+        self._button_bar.grid(row=5, column=0, columnspan=3, stick=tk.EW, pady=5)
+        self._button_bar.grid_columnconfigure(2, weight=1)
+        self._bulletin_button.grid(row=0, column=0, stick=tk.SW, padx=5)
+        self._reset_scores_button.grid(row=0, column=1)
+        self._config_button.grid(row=0, column=3, stick=tk.SE, padx=5)
+        self._quit_button.grid(row=0, column=4, stick=tk.SE, padx=(0, 5))
         self._root.grid_columnconfigure(0, weight=1)
         self._root.grid_columnconfigure(2, weight=1)
-        self._root.grid_rowconfigure(3, weight=1)
+        self._root.grid_rowconfigure(2, weight=1)
 
     def _create_bindings(self):
         # main window buttons
@@ -645,6 +657,7 @@ class Application(widget.StyledWidget):
         self._siren_button.bind('<ButtonRelease-1>', self._on_siren_off)
         self._timeout_button['command'] = self._on_timeout
         self._bulletin_button['command'] = self._on_bulletin
+        self._reset_scores_button['command'] = self._on_reset_scores
         self._config_button['command'] = self._on_config
         self._quit_button['command'] = self._on_quit
         # keyboard shortcuts
@@ -759,6 +772,11 @@ class Application(widget.StyledWidget):
                 self._root, self._scoreboard, self._bulletin_window_closed)
         else:
             self._bulletin_window.lift()
+
+    def _on_reset_scores(self, event=None):
+        if tkMessageBox.askyesno(APP_NAME, CONFIRM_RESET_SCORES):
+            self._home_team_widget.reset_score()
+            self._guest_team_widget.reset_score()
 
     def _on_config(self, event=None):
         self._change_config()
